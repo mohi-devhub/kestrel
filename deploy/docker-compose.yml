@@ -8,7 +8,11 @@ services:
       POSTGRES_PASSWORD: foundry
       POSTGRES_DB: foundry
     ports:
-      - "5432:5432"
+      # Host-side port only — mapped off the default 5432 because a native Postgres
+      # on this machine already holds 127.0.0.1:5432. Containers on the compose
+      # network still reach this over the internal "postgres:5432" hostname/port,
+      # unaffected by this remap.
+      - "5433:5432"
     volumes:
       - foundry-postgres:/var/lib/postgresql/data
     healthcheck:
@@ -20,7 +24,8 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      # Same reasoning as postgres above — a native redis-server already holds 6379.
+      - "6380:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -35,6 +40,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       KUBECONFIG_PATH: /kubeconfig/internal.yaml
       DEFAULT_NAMESPACE: default
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-dev-admin-token}
     volumes:
       - ./kubeconfig/internal.yaml:/kubeconfig/internal.yaml:ro
     ports:
