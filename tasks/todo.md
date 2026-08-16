@@ -14,13 +14,13 @@ Full spec: `docs/PLAN.md`. Checkpoints per `docs/PHASES.md`. Check items off as 
 - [x] CHECKPOINT shown to user
 
 ## Phase 1 — Tenants, API keys, multi-tenancy
-- [ ] Tenant CRUD (Postgres model + API)
-- [ ] API-key auth middleware
-- [ ] Namespace + ResourceQuota + Kueue LocalQueue bootstrap on tenant creation
-- [ ] `POST /jobs` (naive placement)
-- [ ] `POST /endpoints` (naive placement)
-- [ ] Verify tenant isolation (2-3 tenants, cross-tenant access blocked)
-- [ ] CHECKPOINT shown to user
+- [x] Tenant CRUD (Postgres model + API)
+- [x] API-key auth middleware
+- [x] Namespace + ResourceQuota + Kueue LocalQueue bootstrap on tenant creation
+- [x] `POST /jobs` (naive placement)
+- [x] `POST /endpoints` (naive placement)
+- [x] Verify tenant isolation (2-3 tenants, cross-tenant access blocked)
+- [x] CHECKPOINT shown to user
 
 ## Phase 2 — Placement policies on Kueue
 - [ ] Kueue ClusterQueue + ResourceFlavor for fake GPUs
