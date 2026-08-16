@@ -1,0 +1,10 @@
+# Overrides on top of fake-gpu-operator's chart defaults.
+# kwokGpuDevicePlugin is already enabled by default upstream (it patches
+# nvidia.com/gpu capacity directly on KWOK-managed nodes); we only need to
+# size the simulated GPU pool here.
+topology:
+  nodePools:
+    default:
+      gpuProduct: Foundry-SimGPU
+      gpuCount: 4
+      gpuMemory: 40960
