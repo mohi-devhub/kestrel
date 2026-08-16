@@ -5,7 +5,12 @@ from sqlalchemy import create_engine, text
 from cluster import ClusterClient
 from config import settings
 
+from .routers import admin, endpoints, jobs
+
 app = FastAPI(title="Foundry control plane")
+app.include_router(admin.router)
+app.include_router(jobs.router)
+app.include_router(endpoints.router)
 
 
 @app.get("/healthz")
