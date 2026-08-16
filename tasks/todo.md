@@ -1,4 +1,4 @@
-# Foundry — todo
+# Kestrel — todo
 
 Full spec: `docs/PLAN.md`. Checkpoints per `docs/PHASES.md`. Check items off as completed; don't batch.
 

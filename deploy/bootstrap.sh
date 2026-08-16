@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# One-command bring-up for the Foundry data plane:
+# One-command bring-up for the Kestrel data plane:
 # kind cluster -> KWOK -> fake GPU nodes -> fake-gpu-operator -> Kueue.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CLUSTER_NAME="foundry"
+CLUSTER_NAME="kestrel"
 
 if kind get clusters 2>/dev/null | grep -qx "$CLUSTER_NAME"; then
   echo "kind cluster '$CLUSTER_NAME' already exists, reusing it."

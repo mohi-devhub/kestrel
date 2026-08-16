@@ -1,12 +1,12 @@
-name: foundry
+name: kestrel
 
 services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: foundry
-      POSTGRES_PASSWORD: foundry
-      POSTGRES_DB: foundry
+      POSTGRES_USER: kestrel
+      POSTGRES_PASSWORD: kestrel
+      POSTGRES_DB: kestrel
     ports:
       # Host-side port only — mapped off the default 5432 because a native Postgres
       # on this machine already holds 127.0.0.1:5432. Containers on the compose
@@ -14,9 +14,9 @@ services:
       # unaffected by this remap.
       - "5433:5432"
     volumes:
-      - foundry-postgres:/var/lib/postgresql/data
+      - kestrel-postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U foundry"]
+      test: ["CMD-SHELL", "pg_isready -U kestrel"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -36,7 +36,7 @@ services:
     build:
       context: ../control-plane
     environment:
-      DATABASE_URL: postgresql+psycopg://foundry:foundry@postgres:5432/foundry
+      DATABASE_URL: postgresql+psycopg://kestrel:kestrel@postgres:5432/kestrel
       REDIS_URL: redis://redis:6379/0
       KUBECONFIG_PATH: /kubeconfig/internal.yaml
       DEFAULT_NAMESPACE: default
@@ -59,4 +59,4 @@ networks:
     external: true
 
 volumes:
-  foundry-postgres:
+  kestrel-postgres:

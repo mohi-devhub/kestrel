@@ -5,6 +5,6 @@
 topology:
   nodePools:
     default:
-      gpuProduct: Foundry-SimGPU
+      gpuProduct: Kestrel-SimGPU
       gpuCount: 4
       gpuMemory: 40960

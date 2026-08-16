@@ -7,7 +7,7 @@ from config import settings
 
 from .routers import admin, endpoints, jobs
 
-app = FastAPI(title="Foundry control plane")
+app = FastAPI(title="Kestrel control plane")
 app.include_router(admin.router)
 app.include_router(jobs.router)
 app.include_router(endpoints.router)

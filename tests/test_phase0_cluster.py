@@ -1,7 +1,7 @@
-"""Integration tests against the real `foundry` kind cluster (Phase 0 acceptance).
+"""Integration tests against the real `kestrel` kind cluster (Phase 0 acceptance).
 
 Requires: `bash deploy/bootstrap.sh` has been run, and KUBECONFIG_PATH points at
-deploy/kubeconfig/host.yaml (or the default kubeconfig has the kind-foundry context).
+deploy/kubeconfig/host.yaml (or the default kubeconfig has the kind-kestrel context).
 """
 
 from pathlib import Path

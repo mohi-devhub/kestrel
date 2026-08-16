@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Installs the KWOK controller + CRDs into whatever cluster the current
-# kubectl context points at (expects the `foundry` kind cluster).
+# kubectl context points at (expects the `kestrel` kind cluster).
 set -euo pipefail
 
 KWOK_REPO="kubernetes-sigs/kwok"

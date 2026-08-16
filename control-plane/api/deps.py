@@ -9,15 +9,15 @@ from db import get_db
 from db.models import ApiKey, Tenant
 
 
-def require_admin(x_foundry_admin_token: str = Header(...)) -> None:
-    if x_foundry_admin_token != settings.admin_token:
+def require_admin(x_kestrel_admin_token: str = Header(...)) -> None:
+    if x_kestrel_admin_token != settings.admin_token:
         raise HTTPException(status_code=401, detail="invalid admin token")
 
 
 def require_tenant(
-    x_foundry_key: str = Header(...), db: Session = Depends(get_db)
+    x_kestrel_key: str = Header(...), db: Session = Depends(get_db)
 ) -> Tenant:
-    key_hash = hashlib.sha256(x_foundry_key.encode()).hexdigest()
+    key_hash = hashlib.sha256(x_kestrel_key.encode()).hexdigest()
     row = db.execute(
         select(ApiKey).where(ApiKey.key_hash == key_hash, ApiKey.revoked_at.is_(None))
     ).scalar_one_or_none()

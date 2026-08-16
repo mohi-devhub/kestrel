@@ -63,7 +63,7 @@ def create_api_key(tenant_id: uuid.UUID, db: Session = Depends(get_db)) -> ApiKe
     if tenant is None:
         raise HTTPException(status_code=404, detail="tenant not found")
 
-    plaintext = f"fnd_{secrets.token_urlsafe(32)}"
+    plaintext = f"ksl_{secrets.token_urlsafe(32)}"
     key_hash = hashlib.sha256(plaintext.encode()).hexdigest()
     api_key = ApiKey(tenant_id=tenant.id, key_hash=key_hash, created_at=datetime.now(UTC))
     db.add(api_key)

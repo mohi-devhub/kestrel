@@ -12,7 +12,7 @@ _CONTROL_PLANE_DIR = Path(__file__).parent
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=_CONTROL_PLANE_DIR / ".env", extra="ignore")
 
-    database_url: str = "postgresql+psycopg://foundry:foundry@localhost:5432/foundry"
+    database_url: str = "postgresql+psycopg://kestrel:kestrel@localhost:5432/kestrel"
     redis_url: str = "redis://localhost:6379/0"
     kubeconfig_path: str | None = None
     default_namespace: str = "default"

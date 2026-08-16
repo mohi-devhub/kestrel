@@ -1,6 +1,6 @@
 """Thin wrapper around the Kubernetes Python client.
 
-Every workload the control plane creates gets a `foundry.dev/managed-by: foundry`
+Every workload the control plane creates gets a `kestrel.dev/managed-by: kestrel`
 label so ClusterClient never has to guess whether an object is one of ours.
 The kwok toleration is always attached — it's a no-op on real nodes (no matching
 taint), so job/deployment creation code doesn't need to branch on
@@ -14,7 +14,7 @@ from kubernetes import client, config
 
 from schema.cluster import NodeInfo
 
-MANAGED_BY_LABEL = {"foundry.dev/managed-by": "foundry"}
+MANAGED_BY_LABEL = {"kestrel.dev/managed-by": "kestrel"}
 KWOK_TOLERATION = client.V1Toleration(
     key="kwok.x-k8s.io/node", operator="Exists", effect="NoSchedule"
 )
@@ -58,7 +58,7 @@ class ClusterClient:
     def ensure_resource_quota(self, namespace: str, max_gpus: int, max_workloads: int) -> None:
         quota = client.V1ResourceQuota(
             metadata=client.V1ObjectMeta(
-                name="foundry-quota", namespace=namespace, labels=MANAGED_BY_LABEL
+                name="kestrel-quota", namespace=namespace, labels=MANAGED_BY_LABEL
             ),
             spec=client.V1ResourceQuotaSpec(
                 hard={
