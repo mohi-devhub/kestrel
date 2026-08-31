@@ -16,6 +16,8 @@ from ..deps import require_tenant
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
+TERMINAL_STATUSES = {"succeeded", "failed", "stopped"}
+
 
 def _cluster_client() -> ClusterClient:
     return ClusterClient(kubeconfig_path=settings.kubeconfig_path)
@@ -38,7 +40,7 @@ def submit_job(
     workload = Workload(
         tenant_id=tenant.id,
         kind="job",
-        status="submitted",
+        status="queued",
         spec=body.model_dump(),
         gpus_requested=body.gpus,
         priority=body.priority,
@@ -50,13 +52,15 @@ def submit_job(
     db.flush()
 
     try:
-        _cluster_client().create_job(
+        # Only a Kueue Workload CR is created here — no K8s Job yet. The reconcile
+        # loop creates the Job after Kueue admits this, on the node the active
+        # placement policy picks.
+        _cluster_client().ensure_kueue_workload(
             name=k8s_name,
             namespace=namespace,
-            image=body.image,
-            command=body.command,
-            gpus=body.gpus,
             queue_name=tenant_local_queue(tenant.slug),
+            image=body.image,
+            gpus=body.gpus,
         )
     except Exception as exc:
         db.rollback()
@@ -73,11 +77,8 @@ def get_job(
     tenant: Tenant = Depends(require_tenant),
     db: Session = Depends(get_db),
 ) -> Workload:
-    workload = _get_owned_job(workload_id, tenant, db)
-    # Live status, not a cached Postgres column — the reconcile loop that keeps this in
-    # sync continuously is Phase 2 scope.
-    workload.status = _cluster_client().get_job_status(workload.k8s_name, workload.namespace)
-    return workload
+    # Postgres is the source of truth — the reconcile loop keeps status/node in sync.
+    return _get_owned_job(workload_id, tenant, db)
 
 
 @router.get("", response_model=list[WorkloadOut])
@@ -89,9 +90,6 @@ def list_jobs(
         .scalars()
         .all()
     )
-    cluster = _cluster_client()
-    for workload in workloads:
-        workload.status = cluster.get_job_status(workload.k8s_name, workload.namespace)
     return list(workloads)
 
 
@@ -102,7 +100,15 @@ def cancel_job(
     db: Session = Depends(get_db),
 ) -> None:
     workload = _get_owned_job(workload_id, tenant, db)
-    _cluster_client().delete_job(workload.k8s_name, workload.namespace)
+    if workload.status in TERMINAL_STATUSES:
+        return
+
+    cluster = _cluster_client()
+    if workload.status == "running":
+        cluster.delete_job(workload.k8s_name, workload.namespace)
+    # Always drop the Kueue Workload (tolerates 404) — a queued/admitted job has no
+    # K8s Job yet, but its Workload CR still holds a spot in Kueue's queue/quota.
+    cluster.delete_kueue_workload(workload.k8s_name, workload.namespace)
     workload.status = "stopped"
     workload.ended_at = datetime.now(UTC)
     db.commit()

@@ -35,37 +35,23 @@ def provision_endpoint(
     namespace = tenant_namespace(tenant.slug)
     k8s_name = f"endpoint-{uuid.uuid4().hex[:8]}"
 
+    # Endpoints skip Kueue (no native Deployment integration), so there's no
+    # external admission gate: born "admitted", the reconcile loop places them and
+    # creates the Deployment. The namespace ResourceQuota remains the backstop.
+    now = datetime.now(UTC)
     workload = Workload(
         tenant_id=tenant.id,
         kind="endpoint",
-        status="creating",
+        status="admitted",
         spec=body.model_dump(),
         gpus_requested=body.gpus,
         priority=0,
         namespace=namespace,
         k8s_name=k8s_name,
-        created_at=datetime.now(UTC),
+        created_at=now,
+        admitted_at=now,
     )
     db.add(workload)
-    db.flush()
-
-    try:
-        # No Kueue admission for endpoints yet — Kueue has no native Deployment
-        # integration. The namespace ResourceQuota is the only guard rail this phase.
-        _cluster_client().create_deployment(
-            name=k8s_name,
-            namespace=namespace,
-            image=body.image,
-            port=body.port,
-            gpus=body.gpus,
-            replicas=body.min_replicas,
-        )
-    except Exception as exc:
-        db.rollback()
-        raise HTTPException(
-            status_code=502, detail="failed to provision endpoint on the cluster"
-        ) from exc
-
     db.commit()
     db.refresh(workload)
     return workload
@@ -77,11 +63,8 @@ def get_endpoint(
     tenant: Tenant = Depends(require_tenant),
     db: Session = Depends(get_db),
 ) -> Workload:
-    workload = _get_owned_endpoint(workload_id, tenant, db)
-    workload.status = _cluster_client().get_deployment_status(
-        workload.k8s_name, workload.namespace
-    )
-    return workload
+    # Postgres is the source of truth — the reconcile loop keeps status/node in sync.
+    return _get_owned_endpoint(workload_id, tenant, db)
 
 
 @router.get("", response_model=list[WorkloadOut])
@@ -95,9 +78,6 @@ def list_endpoints(
         .scalars()
         .all()
     )
-    cluster = _cluster_client()
-    for workload in workloads:
-        workload.status = cluster.get_deployment_status(workload.k8s_name, workload.namespace)
     return list(workloads)
 
 
@@ -108,7 +88,11 @@ def teardown_endpoint(
     db: Session = Depends(get_db),
 ) -> None:
     workload = _get_owned_endpoint(workload_id, tenant, db)
-    _cluster_client().delete_deployment(workload.k8s_name, workload.namespace)
+    if workload.status == "stopped":
+        return
+
+    if workload.status == "running":
+        _cluster_client().delete_deployment(workload.k8s_name, workload.namespace)
     workload.status = "stopped"
     workload.ended_at = datetime.now(UTC)
     db.commit()

@@ -11,6 +11,10 @@ from cluster.naming import tenant_cluster_queue, tenant_local_queue, tenant_name
 from config import settings
 from db import get_db
 from db.models import ApiKey, Tenant
+from redis_client import get_redis
+from scheduler.active_policy import get_active_policy_name, set_active_policy_name
+from scheduler.policies import POLICIES
+from schema.scheduler import ActivePolicyOut, PolicySwitchRequest
 from schema.tenant import ApiKeyOut, TenantCreate, TenantOut
 
 from ..deps import require_admin
@@ -73,3 +77,19 @@ def create_api_key(tenant_id: uuid.UUID, db: Session = Depends(get_db)) -> ApiKe
     return ApiKeyOut(
         id=api_key.id, tenant_id=tenant.id, key=plaintext, created_at=api_key.created_at
     )
+
+
+@router.get("/policy", response_model=ActivePolicyOut)
+def get_active_policy() -> ActivePolicyOut:
+    return ActivePolicyOut(name=get_active_policy_name(get_redis()))
+
+
+@router.post("/policy", response_model=ActivePolicyOut)
+def switch_active_policy(body: PolicySwitchRequest) -> ActivePolicyOut:
+    if body.name not in POLICIES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"unknown policy {body.name!r}; valid: {sorted(POLICIES)}",
+        )
+    set_active_policy_name(get_redis(), body.name)
+    return ActivePolicyOut(name=body.name)

@@ -53,9 +53,14 @@ class Workload(Base):
     namespace: Mapped[str] = mapped_column(String, nullable=False)
     k8s_name: Mapped[str] = mapped_column(String, nullable=False)
     node_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    placement_policy: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     admitted_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     ended_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
 
-    __table_args__ = (Index("ix_workloads_tenant_status", "tenant_id", "status"),)
+    __table_args__ = (
+        Index("ix_workloads_tenant_status", "tenant_id", "status"),
+        # The reconcile loop scans by status across all tenants every tick.
+        Index("ix_workloads_status", "status"),
+    )

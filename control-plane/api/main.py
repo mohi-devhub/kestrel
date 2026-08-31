@@ -1,16 +1,17 @@
 from fastapi import FastAPI
-from redis import Redis
 from sqlalchemy import create_engine, text
 
 from cluster import ClusterClient
 from config import settings
+from redis_client import get_redis
 
-from .routers import admin, endpoints, jobs
+from .routers import admin, cluster, endpoints, jobs
 
 app = FastAPI(title="Kestrel control plane")
 app.include_router(admin.router)
 app.include_router(jobs.router)
 app.include_router(endpoints.router)
+app.include_router(cluster.router)
 
 
 @app.get("/healthz")
@@ -32,8 +33,7 @@ def _check_database() -> bool:
 
 def _check_redis() -> bool:
     try:
-        r = Redis.from_url(settings.redis_url)
-        return bool(r.ping())
+        return bool(get_redis().ping())
     except Exception:
         return False
 
