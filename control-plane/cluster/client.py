@@ -10,6 +10,8 @@ later without touching this file.
 
 from __future__ import annotations
 
+from typing import Any
+
 from kubernetes import client, config
 
 from schema.cluster import NodeInfo
@@ -28,7 +30,6 @@ GPU_RESOURCE = "nvidia.com/gpu"
 # if a Kueue upgrade ever changes it.
 KUEUE_GROUP = "kueue.x-k8s.io"
 KUEUE_VERSION = "v1beta2"
-KUEUE_QUEUE_LABEL = "kueue.x-k8s.io/queue-name"
 FAKE_GPU_NODE_LABEL = {"run.ai/simulated-gpu-node-pool": "default"}
 
 
@@ -46,6 +47,11 @@ class ClusterClient:
     @staticmethod
     def _ignore_conflict(exc: client.ApiException) -> None:
         if exc.status != 409:
+            raise exc
+
+    @staticmethod
+    def _ignore_not_found(exc: client.ApiException) -> None:
+        if exc.status != 404:
             raise exc
 
     def ensure_namespace(self, name: str) -> None:
@@ -134,6 +140,85 @@ class ClusterClient:
         except client.ApiException as e:
             self._ignore_conflict(e)
 
+    def ensure_kueue_workload(
+        self, name: str, namespace: str, queue_name: str, image: str, gpus: int
+    ) -> None:
+        """Create a Kueue Workload CR describing a resource ask, without any K8s Job.
+
+        This is Kueue's manual-integration pattern: Kueue admits this Workload when
+        the tenant's quota allows, and the reconcile loop creates the real Job only
+        after admission — with the node already chosen by the active PlacementPolicy.
+        The pod template here is never run; it exists so Kueue can compute quota.
+        """
+        requests: dict[str, str] = {"cpu": "100m"}
+        if gpus > 0:
+            requests[GPU_RESOURCE] = str(gpus)
+        body: dict[str, Any] = {
+            "apiVersion": f"{KUEUE_GROUP}/{KUEUE_VERSION}",
+            "kind": "Workload",
+            "metadata": {"name": name, "namespace": namespace, "labels": MANAGED_BY_LABEL},
+            "spec": {
+                "queueName": queue_name,
+                "podSets": [
+                    {
+                        "name": "main",
+                        "count": 1,
+                        "template": {
+                            "spec": {
+                                "containers": [
+                                    {
+                                        "name": "main",
+                                        "image": image,
+                                        "resources": {"requests": requests},
+                                    }
+                                ],
+                                "restartPolicy": "Never",
+                            }
+                        },
+                    }
+                ],
+            },
+        }
+        try:
+            self.custom.create_namespaced_custom_object(
+                KUEUE_GROUP, KUEUE_VERSION, namespace, "workloads", body
+            )
+        except client.ApiException as e:
+            self._ignore_conflict(e)
+
+    def get_kueue_workload(self, name: str, namespace: str) -> dict[str, Any] | None:
+        try:
+            obj = self.custom.get_namespaced_custom_object(
+                KUEUE_GROUP, KUEUE_VERSION, namespace, "workloads", name
+            )
+        except client.ApiException as e:
+            if e.status == 404:
+                return None
+            raise
+        return dict(obj)
+
+    def is_kueue_workload_admitted(self, name: str, namespace: str) -> bool:
+        obj = self.get_kueue_workload(name, namespace)
+        if obj is None:
+            return False
+        status = obj.get("status") or {}
+        if status.get("admission"):
+            return True
+        return any(
+            c.get("type") == "Admitted" and c.get("status") == "True"
+            for c in status.get("conditions", [])
+        )
+
+    def delete_kueue_workload(self, name: str, namespace: str) -> None:
+        """Deleting the Workload is how Kueue learns it's done — that releases its
+        quota reservation so the next queued item can be admitted."""
+        try:
+            self.custom.delete_namespaced_custom_object(
+                KUEUE_GROUP, KUEUE_VERSION, namespace, "workloads", name
+            )
+        except client.ApiException as e:
+            self._ignore_not_found(e)
+
     def list_nodes(self) -> list[NodeInfo]:
         nodes = self.core.list_node()
         result = []
@@ -163,8 +248,14 @@ class ClusterClient:
         command: list[str],
         gpus: int = 0,
         target_node: str | None = None,
-        queue_name: str | None = None,
     ) -> None:
+        """Create the real K8s Job, pinned to target_node when placement chose one.
+
+        Deliberately unlabeled for Kueue: admission already happened against the
+        separately-created Workload CR (ensure_kueue_workload), and the queue-name
+        label would invite Kueue's Job webhook to suspend this Job and hand node
+        choice back to the default scheduler.
+        """
         resources = None
         if gpus > 0:
             resources = client.V1ResourceRequirements(limits={GPU_RESOURCE: str(gpus)})
@@ -181,17 +272,11 @@ class ClusterClient:
             tolerations=[KWOK_TOLERATION],
             node_name=target_node,
         )
-        labels = dict(MANAGED_BY_LABEL)
-        if queue_name:
-            labels[KUEUE_QUEUE_LABEL] = queue_name
         job = client.V1Job(
-            metadata=client.V1ObjectMeta(name=name, namespace=namespace, labels=labels),
+            metadata=client.V1ObjectMeta(name=name, namespace=namespace, labels=MANAGED_BY_LABEL),
             spec=client.V1JobSpec(
                 template=client.V1PodTemplateSpec(spec=pod_spec),
                 backoff_limit=0,
-                # Kueue's Job integration watches for the queue-name label above and
-                # un-suspends this Job itself once it admits the shadow Workload it creates.
-                suspend=bool(queue_name),
             ),
         )
         self.batch.create_namespaced_job(namespace=namespace, body=job)
@@ -204,6 +289,7 @@ class ClusterClient:
         port: int,
         gpus: int = 0,
         replicas: int = 1,
+        target_node: str | None = None,
     ) -> None:
         resources = None
         if gpus > 0:
@@ -215,7 +301,13 @@ class ClusterClient:
             ports=[client.V1ContainerPort(container_port=port)],
             resources=resources,
         )
-        pod_spec = client.V1PodSpec(containers=[container], tolerations=[KWOK_TOLERATION])
+        # node_name on the shared template pins EVERY replica to this node — the
+        # placement accounting must budget gpus * replicas for one node.
+        pod_spec = client.V1PodSpec(
+            containers=[container],
+            tolerations=[KWOK_TOLERATION],
+            node_name=target_node,
+        )
         template = client.V1PodTemplateSpec(
             metadata=client.V1ObjectMeta(labels={**MANAGED_BY_LABEL, "app": name}),
             spec=pod_spec,
@@ -240,14 +332,16 @@ class ClusterClient:
         self.core.create_namespaced_service(namespace=namespace, body=service)
 
     def delete_deployment(self, name: str, namespace: str) -> None:
-        self.apps.delete_namespaced_deployment(
-            name=name, namespace=namespace, propagation_policy="Foreground"
-        )
+        try:
+            self.apps.delete_namespaced_deployment(
+                name=name, namespace=namespace, propagation_policy="Foreground"
+            )
+        except client.ApiException as e:
+            self._ignore_not_found(e)
         try:
             self.core.delete_namespaced_service(name=name, namespace=namespace)
         except client.ApiException as e:
-            if e.status != 404:
-                raise
+            self._ignore_not_found(e)
 
     def get_deployment_status(self, name: str, namespace: str) -> str:
         dep = self.apps.read_namespaced_deployment_status(name=name, namespace=namespace)
@@ -260,11 +354,14 @@ class ClusterClient:
         return "pending"
 
     def delete_job(self, name: str, namespace: str) -> None:
-        self.batch.delete_namespaced_job(
-            name=name,
-            namespace=namespace,
-            propagation_policy="Foreground",
-        )
+        try:
+            self.batch.delete_namespaced_job(
+                name=name,
+                namespace=namespace,
+                propagation_policy="Foreground",
+            )
+        except client.ApiException as e:
+            self._ignore_not_found(e)
 
     def get_job_status(self, name: str, namespace: str) -> str:
         job = self.batch.read_namespaced_job_status(name=name, namespace=namespace)
