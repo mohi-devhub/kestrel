@@ -23,14 +23,14 @@ Full spec: `docs/PLAN.md`. Checkpoints per `docs/PHASES.md`. Check items off as 
 - [x] CHECKPOINT shown to user
 
 ## Phase 2 — Placement policies on Kueue
-- [ ] Kueue ClusterQueue + ResourceFlavor for fake GPUs
-- [ ] `PlacementPolicy` interface
-- [ ] `FirstFit` policy
-- [ ] `BinPacking` policy
-- [ ] `Priority` policy
-- [ ] Reconcile loop (admitted → placed → running → closed, multi-GPU all-or-nothing)
-- [ ] `POST /admin/policy` to switch active policy
-- [ ] Utilization/wait metrics recorded
+- [x] Kueue ClusterQueue + ResourceFlavor for fake GPUs (shipped in Phase 1's tenant bootstrap)
+- [x] `PlacementPolicy` interface
+- [x] `FirstFit` policy
+- [x] `BinPacking` policy
+- [x] `Priority` policy
+- [ ] Reconcile loop (admitted → placed → running → closed, multi-GPU all-or-nothing) — built, pending verification against Postgres/Redis + kind
+- [ ] `POST /admin/policy` to switch active policy — built, pending live verification
+- [ ] Utilization/wait metrics recorded (`GET /cluster/nodes|workloads`, `placement_policy` column) — built, pending live verification
 - [ ] CHECKPOINT shown to user
 
 ## Phase 3 — Metering, quota, billing
