@@ -1,5 +1,13 @@
 name: kestrel
 
+# Shared by the API server and the reconciler — one definition so they can't drift.
+x-control-plane-env: &control-plane-env
+  DATABASE_URL: postgresql+psycopg://kestrel:kestrel@postgres:5432/kestrel
+  REDIS_URL: redis://redis:6379/0
+  KUBECONFIG_PATH: /kubeconfig/internal.yaml
+  DEFAULT_NAMESPACE: default
+  ADMIN_TOKEN: ${ADMIN_TOKEN:-dev-admin-token}
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -35,16 +43,27 @@ services:
   control-plane:
     build:
       context: ../control-plane
-    environment:
-      DATABASE_URL: postgresql+psycopg://kestrel:kestrel@postgres:5432/kestrel
-      REDIS_URL: redis://redis:6379/0
-      KUBECONFIG_PATH: /kubeconfig/internal.yaml
-      DEFAULT_NAMESPACE: default
-      ADMIN_TOKEN: ${ADMIN_TOKEN:-dev-admin-token}
+    environment: *control-plane-env
     volumes:
       - ./kubeconfig/internal.yaml:/kubeconfig/internal.yaml:ro
     ports:
       - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - default
+      - kind
+
+  reconciler:
+    build:
+      context: ../control-plane
+    command: ["python", "-m", "scheduler.reconcile"]
+    environment: *control-plane-env
+    volumes:
+      - ./kubeconfig/internal.yaml:/kubeconfig/internal.yaml:ro
     depends_on:
       postgres:
         condition: service_healthy

@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     kubeconfig_path: str | None = None
     default_namespace: str = "default"
     admin_token: str
+    reconcile_interval_seconds: float = 2.0
 
     @field_validator("kubeconfig_path")
     @classmethod
