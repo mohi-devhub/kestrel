@@ -28,10 +28,10 @@ Full spec: `docs/PLAN.md`. Checkpoints per `docs/PHASES.md`. Check items off as 
 - [x] `FirstFit` policy
 - [x] `BinPacking` policy
 - [x] `Priority` policy
-- [ ] Reconcile loop (admitted → placed → running → closed, multi-GPU all-or-nothing) — built, pending verification against Postgres/Redis + kind
-- [ ] `POST /admin/policy` to switch active policy — built, pending live verification
-- [ ] Utilization/wait metrics recorded (`GET /cluster/nodes|workloads`, `placement_policy` column) — built, pending live verification
-- [ ] CHECKPOINT shown to user
+- [x] Reconcile loop (admitted → placed → running → closed, multi-GPU all-or-nothing)
+- [x] `POST /admin/policy` to switch active policy
+- [x] Utilization/wait metrics recorded (`GET /cluster/nodes|workloads`, `placement_policy` column, admission/start timestamps)
+- [x] CHECKPOINT shown to user
 
 ## Phase 3 — Metering, quota, billing
 - [ ] `MeteringStore`: open/close interval, partials, `usage_for`
@@ -78,3 +78,10 @@ Full spec: `docs/PLAN.md`. Checkpoints per `docs/PHASES.md`. Check items off as 
 Shipped: `deploy/bootstrap.sh` brings up kind + KWOK + fake-gpu-operator (4 nodes x 4 sim GPUs) + Kueue in one command; `control-plane/` FastAPI skeleton with `/healthz` (live DB/Redis/K8s checks, no hardcoded values) and `ClusterClient` (list_nodes, create_job, delete_job, get_job_status); `deploy/docker-compose.yml` runs control-plane + Postgres + Redis, with the control-plane container joined to the `kind` docker network so it reaches the cluster's real API server. Verified: a pod requesting `nvidia.com/gpu: 1` schedules onto a fake node via the normal kube-scheduler; `tests/test_phase0_cluster.py` passes against the live cluster; ruff/mypy clean.
 
 Deviations from `docs/PLAN.md`: none architecturally. One detail the plan didn't spell out — the control-plane container needs `kind get kubeconfig --internal` (not the default host kubeconfig) to reach the API server by Docker-network hostname instead of `127.0.0.1`. Two kubeconfigs are now generated into `deploy/kubeconfig/` (gitignored): `host.yaml` for local dev/tests, `internal.yaml` for the containerized control plane.
+
+### Phase 2 (2026-08-31)
+Shipped: manual Kueue integration (control plane creates `Workload` CRs itself; the real K8s Job is created only after Kueue admits AND the active policy picks a node — Kueue's automatic Job integration is retired since it hands node choice to the default scheduler); `scheduler/` with a pure `PlacementPolicy` interface + `first_fit`, `bin_packing`, `priority` (priority = ordering pass; node selection reuses first-fit); reconcile loop as a standalone compose service (`python -m scheduler.reconcile`, single writer of workload status — API routes now read Postgres only); `POST/GET /admin/policy` (Redis-backed, live-swappable); `GET /cluster/nodes` + `/cluster/workloads` (control-plane GPU accounting, since KWOK bypass means K8s allocatable can't be trusted); `placement_policy` column + status index migration; state-conditional idempotent cancel/teardown.
+
+Verified: 28/28 tests (10 pure policy, 8 reconcile-vs-FakeCluster, integration incl. oversubscription drain, live policy swap changing node choice, multi-GPU all-or-nothing under fragmentation); live checkpoint demo through the containerized stack.
+
+Lessons/deviations: (1) Kueue refuses to admit a Workload requesting any resource the ClusterQueue doesn't cover — the podSet must request GPU only (a nominal `cpu` request wedged everything at `QuotaReserved=False`). (2) `SessionLocal(autoflush=False)` hid same-tick admissions from the placement step's SELECT — explicit `db.flush()` between reconcile steps. (3) Endpoint replicas all pin to one node via the shared pod template, so accounting budgets `gpus × min_replicas`. (4) Per-workload `priority` is deliberately NOT fed into Kueue's own admission ordering (would need WorkloadPriorityClass bootstrap); it drives our placement ordering only.
