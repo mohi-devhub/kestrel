@@ -125,6 +125,9 @@ def reconcile_once(db: Session, cluster: ClusterPort, redis: Redis) -> dict[str,
     policy = get_policy(get_active_policy_name(redis))
     admitted = _check_admissions(db, cluster)
     closed = _sync_running_jobs(db, cluster)
+    # The session runs with autoflush=False; flush so the placement step's queries
+    # see this tick's admissions and completions (freed capacity is reused same-tick).
+    db.flush()
     placed = _place_admitted(db, cluster, policy)
     db.commit()
     return {"admitted": admitted, "closed": closed, "placed": placed}
