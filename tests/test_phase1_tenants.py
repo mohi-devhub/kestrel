@@ -90,10 +90,11 @@ def test_job_submission_and_tenant_isolation(client: TestClient) -> None:
     job = resp.json()
 
     try:
-        # Tenant A can read its own job; status is live from the cluster, not cached.
+        # Tenant A can read its own job; status comes from Postgres, which the
+        # reconcile loop keeps in sync with Kueue and the cluster.
         resp = client.get(f"/jobs/{job['id']}", headers={"X-Kestrel-Key": key_a})
         assert resp.status_code == 200
-        assert resp.json()["status"] in {"pending", "running", "succeeded"}
+        assert resp.json()["status"] in {"queued", "admitted", "running", "succeeded"}
 
         resp = client.get("/jobs", headers={"X-Kestrel-Key": key_a})
         assert resp.status_code == 200
