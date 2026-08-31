@@ -149,8 +149,10 @@ class ClusterClient:
         the tenant's quota allows, and the reconcile loop creates the real Job only
         after admission — with the node already chosen by the active PlacementPolicy.
         The pod template here is never run; it exists so Kueue can compute quota.
+        Only GPU is requested: Kueue refuses to admit a Workload asking for any
+        resource the ClusterQueue doesn't cover, and ours covers nvidia.com/gpu only.
         """
-        requests: dict[str, str] = {"cpu": "100m"}
+        requests: dict[str, str] = {}
         if gpus > 0:
             requests[GPU_RESOURCE] = str(gpus)
         body: dict[str, Any] = {
