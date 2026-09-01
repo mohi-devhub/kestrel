@@ -41,7 +41,8 @@ def usage_breakdown_rows(
                 "workload_id": str(workload_id),
                 "kind": workload.kind if workload else "unknown",
                 "gpus_requested": workload.gpus_requested if workload else None,
-                "gpu_seconds": str(gpu_seconds),
+                # normalize() strips float artifacts like 3600.0; :f avoids E-notation.
+                "gpu_seconds": format(gpu_seconds.normalize(), "f"),
                 "cost": str(cost),
             }
         )

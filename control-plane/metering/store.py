@@ -31,11 +31,21 @@ class MeteringStore:
         self.db = db
 
     def _open_interval_row(self, workload_id: uuid.UUID) -> UsageEvent | None:
-        return self.db.execute(
-            select(UsageEvent).where(
-                UsageEvent.workload_id == workload_id, UsageEvent.ended_at.is_(None)
+        rows = (
+            self.db.execute(
+                select(UsageEvent).where(
+                    UsageEvent.workload_id == workload_id, UsageEvent.ended_at.is_(None)
+                )
             )
-        ).scalar_one_or_none()
+            .scalars()
+            .all()
+        )
+        for row in rows:
+            # Trust instance state over the DB snapshot: with autoflush=False, a
+            # row closed earlier in this transaction still matches the SQL filter.
+            if row.ended_at is None:
+                return row
+        return None
 
     def open_interval(
         self,
@@ -81,9 +91,6 @@ class MeteringStore:
         closed = self.close_interval(workload_id, at, is_partial=True)
         if closed is None:
             return None
-        # Sessions here run with autoflush=False; without a flush the reopen's
-        # open-interval lookup would still see the row we just closed as open.
-        self.db.flush()
         return self.open_interval(closed.tenant_id, workload_id, closed.gpus, at)
 
     def usage_for(
