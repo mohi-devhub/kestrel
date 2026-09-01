@@ -13,14 +13,14 @@ from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 
 from api.main import app
 from cluster import ClusterClient
 from cluster.naming import tenant_namespace
 from config import settings
 from db import SessionLocal
-from db.models import Workload
+from db.models import UsageEvent, Workload
 from redis_client import get_redis
 from scheduler.reconcile import reconcile_once
 
@@ -199,6 +199,8 @@ def test_policy_swap_changes_placement(client: TestClient, cluster: ClusterClien
         assert placed_bp["placement_policy"] == "bin_packing"
     finally:
         _cancel_all(client, key)
+        ns_workloads = select(Workload.id).where(Workload.namespace == namespace)
+        db.execute(delete(UsageEvent).where(UsageEvent.workload_id.in_(ns_workloads)))
         db.execute(delete(Workload).where(Workload.namespace == namespace))
         db.commit()
         db.close()
