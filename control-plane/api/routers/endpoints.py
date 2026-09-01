@@ -10,6 +10,9 @@ from cluster.naming import tenant_namespace
 from config import settings
 from db import get_db
 from db.models import Tenant, Workload
+from metering import MeteringStore
+from quota import QuotaEnforcer, QuotaExceeded
+from scheduler.accounting import effective_gpus
 from schema.workload import EndpointCreate, WorkloadOut
 
 from ..deps import require_tenant
@@ -32,6 +35,15 @@ def _get_owned_endpoint(workload_id: uuid.UUID, tenant: Tenant, db: Session) -> 
 def provision_endpoint(
     body: EndpointCreate, tenant: Tenant = Depends(require_tenant), db: Session = Depends(get_db)
 ) -> Workload:
+    spec = body.model_dump()
+    try:
+        # An endpoint's footprint is gpus x replicas (all replicas pin to one node).
+        QuotaEnforcer(db).check_admission(
+            tenant, effective_gpus("endpoint", body.gpus, spec), datetime.now(UTC)
+        )
+    except QuotaExceeded as exc:
+        raise HTTPException(status_code=429, detail=exc.reason) from None
+
     namespace = tenant_namespace(tenant.slug)
     k8s_name = f"endpoint-{uuid.uuid4().hex[:8]}"
 
@@ -43,7 +55,7 @@ def provision_endpoint(
         tenant_id=tenant.id,
         kind="endpoint",
         status="admitted",
-        spec=body.model_dump(),
+        spec=spec,
         gpus_requested=body.gpus,
         priority=0,
         namespace=namespace,
@@ -91,8 +103,10 @@ def teardown_endpoint(
     if workload.status == "stopped":
         return
 
+    now = datetime.now(UTC)
     if workload.status == "running":
         _cluster_client().delete_deployment(workload.k8s_name, workload.namespace)
+        MeteringStore(db).close_interval(workload.id, now)
     workload.status = "stopped"
-    workload.ended_at = datetime.now(UTC)
+    workload.ended_at = now
     db.commit()

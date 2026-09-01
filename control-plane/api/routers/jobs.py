@@ -10,6 +10,8 @@ from cluster.naming import tenant_local_queue, tenant_namespace
 from config import settings
 from db import get_db
 from db.models import Tenant, Workload
+from metering import MeteringStore
+from quota import QuotaEnforcer, QuotaExceeded
 from schema.workload import JobCreate, WorkloadOut
 
 from ..deps import require_tenant
@@ -34,6 +36,11 @@ def _get_owned_job(workload_id: uuid.UUID, tenant: Tenant, db: Session) -> Workl
 def submit_job(
     body: JobCreate, tenant: Tenant = Depends(require_tenant), db: Session = Depends(get_db)
 ) -> Workload:
+    try:
+        QuotaEnforcer(db).check_admission(tenant, body.gpus, datetime.now(UTC))
+    except QuotaExceeded as exc:
+        raise HTTPException(status_code=429, detail=exc.reason) from None
+
     namespace = tenant_namespace(tenant.slug)
     k8s_name = f"job-{uuid.uuid4().hex[:8]}"
 
@@ -104,11 +111,13 @@ def cancel_job(
         return
 
     cluster = _cluster_client()
+    now = datetime.now(UTC)
     if workload.status == "running":
         cluster.delete_job(workload.k8s_name, workload.namespace)
+        MeteringStore(db).close_interval(workload.id, now)
     # Always drop the Kueue Workload (tolerates 404) — a queued/admitted job has no
     # K8s Job yet, but its Workload CR still holds a spot in Kueue's queue/quota.
     cluster.delete_kueue_workload(workload.k8s_name, workload.namespace)
     workload.status = "stopped"
-    workload.ended_at = datetime.now(UTC)
+    workload.ended_at = now
     db.commit()

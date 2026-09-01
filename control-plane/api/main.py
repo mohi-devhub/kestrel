@@ -5,13 +5,14 @@ from cluster import ClusterClient
 from config import settings
 from redis_client import get_redis
 
-from .routers import admin, cluster, endpoints, jobs
+from .routers import admin, cluster, endpoints, jobs, usage
 
 app = FastAPI(title="Kestrel control plane")
 app.include_router(admin.router)
 app.include_router(jobs.router)
 app.include_router(endpoints.router)
 app.include_router(cluster.router)
+app.include_router(usage.router)
 
 
 @app.get("/healthz")

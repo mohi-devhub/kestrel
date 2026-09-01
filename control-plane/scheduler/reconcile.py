@@ -4,10 +4,12 @@ Runs as its own process (`python -m scheduler.reconcile`) beside the API server,
 and is the single writer of workload status/node_name/timestamps after submission.
 Each tick:
   1. check Kueue admissions (queued -> admitted),
-  2. close finished jobs (running -> succeeded/failed), freeing their GPUs and
-     deleting their Kueue Workload so the quota reservation is released,
+  2. close finished jobs (running -> succeeded/failed), closing their usage
+     intervals, freeing their GPUs and deleting their Kueue Workload so the
+     quota reservation is released,
   3. place admitted workloads via the active PlacementPolicy (admitted -> running),
-     using capacity freed in step 2 within the same tick.
+     using capacity freed in step 2 within the same tick — gated per tenant on
+     the concurrent-GPU quota, and opening a usage interval on placement.
 """
 
 from __future__ import annotations
@@ -21,7 +23,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from cluster.protocol import ClusterPort
-from db.models import Workload
+from db.models import Tenant, Workload
+from metering import MeteringStore
+from quota import QuotaEnforcer
 from scheduler.accounting import effective_gpus, used_gpus_by_node
 from scheduler.active_policy import get_active_policy_name
 from scheduler.policies import get_policy
@@ -49,12 +53,14 @@ def _sync_running_jobs(db: Session, cluster: ClusterPort) -> int:
         .scalars()
         .all()
     )
+    metering = MeteringStore(db)
     closed = 0
     for w in running:
         status = cluster.get_job_status(w.k8s_name, w.namespace)
         if status in {"succeeded", "failed"}:
             w.status = status
             w.ended_at = datetime.now(UTC)
+            metering.close_interval(w.id, w.ended_at)
             cluster.delete_kueue_workload(w.k8s_name, w.namespace)
             closed += 1
     return closed
@@ -85,14 +91,32 @@ def _place_admitted(db: Session, cluster: ClusterPort, policy: PlacementPolicy) 
         for w in rows
     ]
 
+    # Per-tenant GPU tally, queried once then maintained in memory as we place:
+    # the session is autoflush=False, so a mid-loop re-query would miss this
+    # tick's placements (same lesson as ClusterState.reserve for nodes).
+    metering = MeteringStore(db)
+    held = QuotaEnforcer(db).running_gpus_by_tenant()
+    tenant_ids = {w.tenant_id for w in rows}
+    max_gpus = {
+        t.id: t.max_gpus
+        for t in db.execute(select(Tenant).where(Tenant.id.in_(tenant_ids))).scalars()
+    }
+
     placed = 0
     for candidate in policy.order(candidates):
+        w = by_id[candidate.workload_id]
+        if not QuotaEnforcer.check_placement(
+            max_gpus[w.tenant_id], held.get(w.tenant_id, 0), candidate.gpus_needed
+        ):
+            # Would push the tenant over its concurrent-GPU quota (the only gate
+            # endpoints get, since they skip Kueue) — stays admitted, retried
+            # next tick once the tenant's running work frees up.
+            continue
         node = policy.select_node(state, candidate)
         if node is None:
             # Doesn't fit anywhere right now (e.g. free GPUs exist but are
             # fragmented across nodes) — stays admitted, retried next tick.
             continue
-        w = by_id[candidate.workload_id]
         if w.kind == "job":
             cluster.create_job(
                 name=w.k8s_name,
@@ -113,15 +137,17 @@ def _place_admitted(db: Session, cluster: ClusterPort, policy: PlacementPolicy) 
                 target_node=node,
             )
         state.reserve(node, candidate.gpus_needed)
+        held[w.tenant_id] = held.get(w.tenant_id, 0) + candidate.gpus_needed
         w.node_name = node
         w.status = "running"
         w.started_at = datetime.now(UTC)
         w.placement_policy = policy.name
+        metering.open_interval(w.tenant_id, w.id, candidate.gpus_needed, w.started_at)
         placed += 1
     return placed
 
 
-def reconcile_once(db: Session, cluster: ClusterPort, redis: Redis) -> dict[str, int]:
+def reconcile_once(db: Session, cluster: ClusterPort, redis: Redis[str]) -> dict[str, int]:
     policy = get_policy(get_active_policy_name(redis))
     admitted = _check_admissions(db, cluster)
     closed = _sync_running_jobs(db, cluster)
