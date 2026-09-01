@@ -17,8 +17,7 @@ from db.models import Tenant, Workload
 from metering import MeteringStore
 from scheduler.accounting import effective_gpus
 
-# Statuses that hold quota: queued/admitted rows already hold a Kueue
-# reservation or queue spot, so they count toward concurrency limits.
+# In-flight statuses: these rows occupy a slot against max_workloads.
 ACTIVE_STATUSES = {"queued", "admitted", "running"}
 
 # All-time window for lifetime budgets.
@@ -48,20 +47,25 @@ class QuotaEnforcer:
         )
 
     def check_admission(self, tenant: Tenant, gpus_requested: int, now: datetime) -> None:
-        """Raise QuotaExceeded if accepting this submission would break a limit.
+        """Raise QuotaExceeded if this submission should be rejected outright.
 
         `gpus_requested` must be the *effective* footprint (endpoint = gpus x replicas).
+
+        Deliberately does NOT count queued/admitted GPUs against max_gpus:
+        waiting in line beyond current capacity is Kueue's queueing model, and
+        the placement gate enforces concurrency when work actually starts. Only
+        an ask bigger than the tenant's whole quota is rejected here — it could
+        never run and would wedge in the queue forever.
         """
         active = self._active_workloads(tenant.id)
         if len(active) >= tenant.max_workloads:
             raise QuotaExceeded(
                 f"workload limit reached: {len(active)}/{tenant.max_workloads} active workloads"
             )
-        held = sum(effective_gpus(w.kind, w.gpus_requested, w.spec) for w in active)
-        if held + gpus_requested > tenant.max_gpus:
+        if gpus_requested > tenant.max_gpus:
             raise QuotaExceeded(
-                f"GPU limit exceeded: {held} held + {gpus_requested} requested"
-                f" > {tenant.max_gpus} allowed"
+                f"requested {gpus_requested} GPUs but the tenant quota is"
+                f" {tenant.max_gpus}; this workload could never run"
             )
         if self.is_over_budget(tenant, now):
             raise QuotaExceeded(
