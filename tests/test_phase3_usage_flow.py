@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from test_phase2_reconcile import FakeCluster
 
 from db import SessionLocal
-from db.models import Tenant, UsageEvent, Workload
+from db.models import AutoscaleEvent, Tenant, UsageEvent, Workload
 from metering import MeteringStore
 from redis_client import get_redis
 from scheduler.active_policy import get_active_policy_name, set_active_policy_name
@@ -47,6 +47,9 @@ def _sweep_fake_rows() -> Any:
     session = SessionLocal()
     try:
         fake_workloads = select(Workload.id).where(Workload.namespace.like("fake-%"))
+        session.execute(
+            delete(AutoscaleEvent).where(AutoscaleEvent.workload_id.in_(fake_workloads))
+        )
         session.execute(delete(UsageEvent).where(UsageEvent.workload_id.in_(fake_workloads)))
         session.execute(delete(Workload).where(Workload.namespace.like("fake-%")))
         session.commit()

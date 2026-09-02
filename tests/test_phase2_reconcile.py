@@ -15,7 +15,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from db import SessionLocal
-from db.models import Tenant, UsageEvent, Workload
+from db.models import AutoscaleEvent, Tenant, UsageEvent, Workload
 from redis_client import get_redis
 from scheduler.active_policy import get_active_policy_name, set_active_policy_name
 from scheduler.reconcile import reconcile_once
@@ -81,6 +81,9 @@ class FakeCluster:
             "target_node": target_node,
         }
 
+    def scale_deployment(self, name: str, namespace: str, replicas: int) -> None:
+        self.deployments.setdefault((namespace, name), {})["replicas"] = replicas
+
     def get_job_status(self, name: str, namespace: str) -> str:
         return self.job_statuses.get((namespace, name), "running")
 
@@ -117,6 +120,9 @@ def _sweep_fake_rows() -> Any:
     session = SessionLocal()
     try:
         fake_workloads = select(Workload.id).where(Workload.namespace.like("fake-%"))
+        session.execute(
+            delete(AutoscaleEvent).where(AutoscaleEvent.workload_id.in_(fake_workloads))
+        )
         session.execute(delete(UsageEvent).where(UsageEvent.workload_id.in_(fake_workloads)))
         session.execute(delete(Workload).where(Workload.namespace.like("fake-%")))
         session.commit()

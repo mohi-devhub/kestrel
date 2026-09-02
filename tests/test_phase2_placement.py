@@ -20,7 +20,7 @@ from cluster import ClusterClient
 from cluster.naming import tenant_namespace
 from config import settings
 from db import SessionLocal
-from db.models import UsageEvent, Workload
+from db.models import AutoscaleEvent, UsageEvent, Workload
 from redis_client import get_redis
 from scheduler.reconcile import reconcile_once
 
@@ -200,6 +200,7 @@ def test_policy_swap_changes_placement(client: TestClient, cluster: ClusterClien
     finally:
         _cancel_all(client, key)
         ns_workloads = select(Workload.id).where(Workload.namespace == namespace)
+        db.execute(delete(AutoscaleEvent).where(AutoscaleEvent.workload_id.in_(ns_workloads)))
         db.execute(delete(UsageEvent).where(UsageEvent.workload_id.in_(ns_workloads)))
         db.execute(delete(Workload).where(Workload.namespace == namespace))
         db.commit()
