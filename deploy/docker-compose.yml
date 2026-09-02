@@ -73,6 +73,22 @@ services:
       - default
       - kind
 
+  autoscaler:
+    build:
+      context: ../control-plane
+    command: ["python", "-m", "autoscale.loop"]
+    environment: *control-plane-env
+    volumes:
+      - ./kubeconfig/internal.yaml:/kubeconfig/internal.yaml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - default
+      - kind
+
 networks:
   kind:
     external: true

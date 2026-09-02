@@ -82,16 +82,21 @@ class MeteringStore:
         event.is_partial = is_partial
         return event
 
-    def record_partial(self, workload_id: uuid.UUID, at: datetime) -> UsageEvent | None:
+    def record_partial(
+        self, workload_id: uuid.UUID, at: datetime, gpus: int | None = None
+    ) -> UsageEvent | None:
         """Rotate the open interval: close it as partial and reopen from `at`.
 
         Keeps every closed row immutable while a workload keeps running — the
-        autoscaler uses this when a replica change alters the GPU footprint.
+        autoscaler uses this when a replica change alters the GPU footprint, passing
+        the new footprint as `gpus`. Omitting `gpus` reopens at the same size.
         """
         closed = self.close_interval(workload_id, at, is_partial=True)
         if closed is None:
             return None
-        return self.open_interval(closed.tenant_id, workload_id, closed.gpus, at)
+        return self.open_interval(
+            closed.tenant_id, workload_id, closed.gpus if gpus is None else gpus, at
+        )
 
     def usage_for(
         self,

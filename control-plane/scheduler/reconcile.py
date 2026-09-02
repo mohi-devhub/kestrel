@@ -26,7 +26,7 @@ from cluster.protocol import ClusterPort
 from db.models import Tenant, Workload
 from metering import MeteringStore
 from quota import QuotaEnforcer
-from scheduler.accounting import effective_gpus, used_gpus_by_node
+from scheduler.accounting import used_gpus_by_node, workload_gpus
 from scheduler.active_policy import get_active_policy_name
 from scheduler.policies import get_policy
 from scheduler.policy import ClusterState, PlacementCandidate, PlacementPolicy
@@ -84,7 +84,7 @@ def _place_admitted(db: Session, cluster: ClusterPort, policy: PlacementPolicy) 
     candidates = [
         PlacementCandidate(
             workload_id=w.id,
-            gpus_needed=effective_gpus(w.kind, w.gpus_requested, w.spec),
+            gpus_needed=workload_gpus(w),
             priority=w.priority,
             admitted_at=w.admitted_at or w.created_at,
         )
@@ -127,27 +127,34 @@ def _place_admitted(db: Session, cluster: ClusterPort, policy: PlacementPolicy) 
                 target_node=node,
             )
         else:
+            replicas = int(w.spec.get("min_replicas", 1))
             cluster.create_deployment(
                 name=w.k8s_name,
                 namespace=w.namespace,
                 image=w.spec["image"],
                 port=w.spec["port"],
                 gpus=w.gpus_requested,
-                replicas=int(w.spec.get("min_replicas", 1)),
+                replicas=replicas,
                 target_node=node,
             )
+            # Hand the autoscaler its starting point; from here the row, not the
+            # spec, is what the footprint is read from.
+            w.replicas = replicas
         state.reserve(node, candidate.gpus_needed)
         held[w.tenant_id] = held.get(w.tenant_id, 0) + candidate.gpus_needed
         w.node_name = node
         w.status = "running"
         w.started_at = datetime.now(UTC)
         w.placement_policy = policy.name
-        metering.open_interval(w.tenant_id, w.id, candidate.gpus_needed, w.started_at)
+        if candidate.gpus_needed > 0:
+            # An endpoint placed at min_replicas=0 holds nothing yet — it accrues
+            # from the moment the autoscaler wakes it, not from placement.
+            metering.open_interval(w.tenant_id, w.id, candidate.gpus_needed, w.started_at)
         placed += 1
     return placed
 
 
-def reconcile_once(db: Session, cluster: ClusterPort, redis: Redis[str]) -> dict[str, int]:
+def reconcile_once(db: Session, cluster: ClusterPort, redis: Redis) -> dict[str, int]:
     policy = get_policy(get_active_policy_name(redis))
     admitted = _check_admissions(db, cluster)
     closed = _sync_running_jobs(db, cluster)
@@ -163,7 +170,7 @@ def main() -> None:
     from cluster import ClusterClient
     from config import settings
     from db import SessionLocal
-    from redis_client import get_redis
+    from redis_client import control_lock, get_redis
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
     cluster = ClusterClient(kubeconfig_path=settings.kubeconfig_path)
@@ -173,9 +180,13 @@ def main() -> None:
     while True:
         db = SessionLocal()
         try:
-            stats = reconcile_once(db, cluster, redis)
-            if any(stats.values()):
-                logger.info("tick: %s", stats)
+            with control_lock(redis) as acquired:
+                # Not acquired means the autoscaler holds it; skip and try next tick
+                # rather than queueing up behind it.
+                if acquired:
+                    stats = reconcile_once(db, cluster, redis)
+                    if any(stats.values()):
+                        logger.info("tick: %s", stats)
         except Exception:
             logger.exception("reconcile tick failed")
             db.rollback()

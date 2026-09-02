@@ -333,6 +333,19 @@ class ClusterClient:
         )
         self.core.create_namespaced_service(namespace=namespace, body=service)
 
+    def scale_deployment(self, name: str, namespace: str, replicas: int) -> None:
+        """Patch the desired replica count. The autoscaler's only write to the cluster.
+
+        A merge patch on spec.replicas alone, so it can't clobber the node pinning
+        or anything else the reconcile loop put in the pod template.
+        """
+        try:
+            self.apps.patch_namespaced_deployment_scale(
+                name=name, namespace=namespace, body={"spec": {"replicas": replicas}}
+            )
+        except client.ApiException as e:
+            self._ignore_not_found(e)
+
     def delete_deployment(self, name: str, namespace: str) -> None:
         try:
             self.apps.delete_namespaced_deployment(
