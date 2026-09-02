@@ -46,11 +46,18 @@ Full spec: `docs/PLAN.md`. Checkpoints per `docs/PHASES.md`. Check items off as 
 - [x] CHECKPOINT shown to user
 
 ## Phase 4 — Autoscaling
-- [ ] Custom autoscaler loop (queue-depth/load → replicas)
-- [ ] Scale-to-zero on idle
-- [ ] `scripts/loadgen.py`
-- [ ] `autoscale_events` recorded
-- [ ] CHECKPOINT shown to user
+- [x] `autoscale_events` table + `workloads.replicas` column (migration)
+- [x] Replica-aware GPU accounting (`workload_gpus`), wired into node/quota/placement
+- [x] `LoadSignal`: reported-load ingest + Redis rolling window
+- [x] `AutoscalePolicy`: pure `decide()` + `clamp_to_capacity()`
+- [x] `autoscale_once` loop: scale Deployment, rotate usage interval, record events
+- [x] Scale-to-zero on idle (min_replicas=0) + wake from zero
+- [x] `control_lock` shared by reconciler and autoscaler
+- [x] `POST/GET /endpoints/{id}/load`, `GET /endpoints/{id}/autoscale-events`
+- [x] `scripts/loadgen.py`
+- [x] Unit tests: autoscale decision math
+- [x] Integration tests: autoscale loop + load API
+- [x] CHECKPOINT shown to user
 
 ## Phase 5 — Observability + dashboard
 - [ ] Prometheus metrics wired (full list in `docs/PLAN.md` §8)
@@ -92,3 +99,10 @@ Shipped: `metering/` (`MeteringStore` — append-only usage intervals opened at 
 Verified: 59/59 tests (27 new Phase 3 unit/flow + 4 new live integration + existing suite), ruff/mypy clean, migration up/down round-tripped on live Postgres. Live checkpoint through the containerized stack: a 2-GPU endpoint accruing 8.08 → 24.11 → 40.15 GPU-seconds across 8s reads (exactly 2 GPUs × elapsed), billing report totalling 40.19 GPU-seconds = $0.14 at $12.50/GPU-hour, a 5-GPU ask on a 4-GPU quota rejected 429, teardown freezing accrual, and a 10 GPU-second budget blocking the next submission once crossed.
 
 Lessons/deviations: (1) **Admission deliberately does NOT count queued/admitted GPUs against `max_gpus`** — waiting in line beyond current capacity is exactly Kueue's queueing model, so admission only rejects an ask larger than the tenant's entire quota (it could never run and would wedge the queue forever); concurrency is enforced at *placement*, which is also the only gate endpoints get since they skip Kueue. (2) The autoflush lesson from Phase 2 recurred twice: the placement loop keeps an in-memory per-tenant GPU tally (a re-query would miss same-tick placements, mirroring `ClusterState.reserve`), and `MeteringStore` checks instance state before closing an interval (a row closed earlier in the same transaction still matches the "open" SQL filter). (3) No timer-driven partial records — live cost is derived by pricing open intervals to `now` at read time, which is exact, append-only, and writes nothing. (4) KWOK auto-completes fake Job pods almost instantly, so demonstrating live accrual needs an endpoint (Deployment), not a job.
+
+### Phase 4 (2026-09-02)
+Shipped: `autoscale/` (`LoadSignal` — reported requests in a Redis sorted-set sliding window; `policy.py` — pure `decide()` turning observed RPS into a replica target with scale-to-zero, wake-from-zero and a scale-down stabilization window, plus `clamp_to_capacity()` limiting a scale-up to the pinned node's free GPUs and the tenant's quota headroom; `loop.py` — `autoscale_once` patching the Deployment, rotating the usage interval onto the new footprint and appending `autoscale_events`, run as its own compose service); `workloads.replicas` column + `autoscale_events` table; `workload_gpus()` so node accounting, tenant quota and metering all read an endpoint's *live* footprint; `control_lock` (Redis mutex with a Lua compare-and-delete release) shared by the reconciler and the autoscaler; `POST/GET /endpoints/{id}/load` and `GET /endpoints/{id}/autoscale-events`; `scripts/loadgen.py`.
+
+Verified: 100/100 tests (23 pure decision-math + 9 loop-vs-FakeCluster + 7 load-API + 2 new live, plus the existing suite), ruff clean, mypy clean on 47 source files, migration down/up round-tripped on live Postgres. Live checkpoint through the containerized stack: an endpoint provisioned at `min_replicas=0` placed cold (0 replicas, 0 GPU-seconds, $0), woken by reported load and climbing 0→1→2→3 replicas as the window filled, confirmed against the real Deployment (`kubectl` replicas and pod count both 3) and the node's GPU accounting (`gpu_used=3`), stepped back down 3→2→1 with the two scale-downs exactly 30s apart, then asleep at 0 replicas 65s after traffic stopped with all 4 GPUs returned to the node; usage frozen at 261.366746 GPU-seconds across two reads 8s apart, billed $0.91 at $12.50/GPU-hour.
+
+Lessons/deviations: (1) **The repo was not actually mypy-clean under `control-plane/.venv`** — `redis.Redis` is not generic in redis-py 5.2.1 (so the `Redis[str]` annotations added in Phase 3 were errors) and SQLAlchemy's dialect-type constructors are untyped. Earlier "clean" runs must have used an environment that couldn't resolve those packages. Fixed at the source (plain `Redis`, pass the type class instead of instantiating it) rather than with ignores, which would have gone stale the same way. (2) A package `__init__` must not import the module that gets run as `python -m` — re-exporting `autoscale.loop` made runpy execute it twice and warn. (3) The sliding window makes scale-up *gradual* even under perfectly constant traffic, because the observed rate climbs as the window fills; that's the same shape as Knative's stable window and is worth keeping, not smoothing away. (4) Simulating elapsed time by passing an explicit `now` into `autoscale_once` let the live test cover the 60s idle window without sleeping through it — the load signal's timestamps are real, so a future `now` is indistinguishable from having waited. (5) Scale-to-zero *closes* the usage interval rather than reopening one at 0 GPUs, so a sleeping endpoint has no open row at all and cost visibly flatlines. (6) Two loops now write workload rows, so rather than making each independently safe they share one short Redis mutex per tick — Phase 2's single-writer invariant is preserved in effect, and it rules out the two loops double-booking a node's GPUs.
