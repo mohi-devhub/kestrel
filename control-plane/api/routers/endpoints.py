@@ -5,14 +5,17 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from autoscale import LoadSignal, config_for, decide, last_event_at
 from cluster import ClusterClient
 from cluster.naming import tenant_namespace
 from config import settings
 from db import get_db
-from db.models import Tenant, Workload
+from db.models import AutoscaleEvent, Tenant, Workload
 from metering import MeteringStore
 from quota import QuotaEnforcer, QuotaExceeded
+from redis_client import get_redis
 from scheduler.accounting import effective_gpus
+from schema.autoscale import AutoscaleEventOut, LoadOut, LoadReport
 from schema.workload import EndpointCreate, WorkloadOut
 
 from ..deps import require_tenant
@@ -108,5 +111,79 @@ def teardown_endpoint(
         _cluster_client().delete_deployment(workload.k8s_name, workload.namespace)
         MeteringStore(db).close_interval(workload.id, now)
     workload.status = "stopped"
+    workload.replicas = 0
     workload.ended_at = now
     db.commit()
+    # Drop the rolling window so a later endpoint can't inherit stale traffic.
+    LoadSignal(get_redis(), settings.autoscale_window_seconds).clear(workload.id)
+
+
+def _load_view(workload: Workload, db: Session, now: datetime) -> LoadOut:
+    config = config_for(workload)
+    signal = LoadSignal(get_redis(), settings.autoscale_window_seconds)
+    obs = signal.observe(workload.id, now)
+    current = workload.replicas if workload.replicas is not None else config.min_replicas
+    last_at = last_event_at(db, [workload.id]).get(workload.id)
+    decision = decide(obs, current, config, now, last_at)
+    return LoadOut(
+        workload_id=workload.id,
+        window_seconds=settings.autoscale_window_seconds,
+        requests_in_window=obs.requests_in_window,
+        rps=obs.rps,
+        last_request_at=obs.last_request_at,
+        current_replicas=current,
+        desired_replicas=decision.target,
+        min_replicas=config.min_replicas,
+        max_replicas=config.max_replicas,
+        target_rps_per_replica=config.target_rps_per_replica,
+    )
+
+
+@router.post("/{workload_id}/load", response_model=LoadOut)
+def report_load(
+    workload_id: uuid.UUID,
+    body: LoadReport,
+    tenant: Tenant = Depends(require_tenant),
+    db: Session = Depends(get_db),
+) -> LoadOut:
+    """Report requests the serving layer handled — the autoscaler's input signal.
+
+    KWOK pods serve no real traffic, so load is reported rather than sniffed; this
+    is the same seam Knative uses, where the queue-proxy sidecar pushes its numbers
+    to the autoscaler. scripts/loadgen.py is the reporter for the demo.
+    """
+    workload = _get_owned_endpoint(workload_id, tenant, db)
+    now = datetime.now(UTC)
+    LoadSignal(get_redis(), settings.autoscale_window_seconds).record(
+        workload.id, body.requests, now
+    )
+    return _load_view(workload, db, now)
+
+
+@router.get("/{workload_id}/load", response_model=LoadOut)
+def get_load(
+    workload_id: uuid.UUID,
+    tenant: Tenant = Depends(require_tenant),
+    db: Session = Depends(get_db),
+) -> LoadOut:
+    workload = _get_owned_endpoint(workload_id, tenant, db)
+    return _load_view(workload, db, datetime.now(UTC))
+
+
+@router.get("/{workload_id}/autoscale-events", response_model=list[AutoscaleEventOut])
+def list_autoscale_events(
+    workload_id: uuid.UUID,
+    tenant: Tenant = Depends(require_tenant),
+    db: Session = Depends(get_db),
+) -> list[AutoscaleEvent]:
+    workload = _get_owned_endpoint(workload_id, tenant, db)
+    events = (
+        db.execute(
+            select(AutoscaleEvent)
+            .where(AutoscaleEvent.workload_id == workload.id)
+            .order_by(AutoscaleEvent.at)
+        )
+        .scalars()
+        .all()
+    )
+    return list(events)
