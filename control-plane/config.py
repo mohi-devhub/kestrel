@@ -19,6 +19,16 @@ class Settings(BaseSettings):
     admin_token: str
     reconcile_interval_seconds: float = 2.0
 
+    # Autoscaling. Defaults are platform-wide; max/min replicas and the RPS target
+    # are per-endpoint overrides on the workload spec.
+    autoscale_interval_seconds: float = 5.0
+    autoscale_window_seconds: float = 30.0
+    autoscale_target_rps_per_replica: float = 5.0
+    scale_to_zero_after_seconds: float = 60.0
+    # Scale-up is immediate; scale-down waits this long after the last replica change
+    # so a brief dip in traffic can't flap an endpoint down and straight back up.
+    scale_down_stabilization_seconds: float = 30.0
+
     @field_validator("kubeconfig_path")
     @classmethod
     def _resolve_kubeconfig_path(cls, v: str | None) -> str | None:
