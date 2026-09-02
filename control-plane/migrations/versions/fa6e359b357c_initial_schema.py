@@ -52,7 +52,7 @@ def upgrade() -> None:
         ),
         sa.Column("kind", sa.String(), nullable=False),
         sa.Column("status", sa.String(), nullable=False),
-        sa.Column("spec", postgresql.JSONB(), nullable=False),
+        sa.Column("spec", postgresql.JSONB, nullable=False),
         sa.Column("gpus_requested", sa.Integer(), nullable=False),
         sa.Column("priority", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("namespace", sa.String(), nullable=False),

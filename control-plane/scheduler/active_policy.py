@@ -16,7 +16,7 @@ ACTIVE_POLICY_KEY = "kestrel:active_policy"
 DEFAULT_POLICY = "first_fit"
 
 
-def get_active_policy_name(redis: Redis[str]) -> str:
+def get_active_policy_name(redis: Redis) -> str:
     raw = redis.get(ACTIVE_POLICY_KEY)
     if raw is None:
         return DEFAULT_POLICY
@@ -24,7 +24,7 @@ def get_active_policy_name(redis: Redis[str]) -> str:
     return name if name in POLICIES else DEFAULT_POLICY
 
 
-def set_active_policy_name(redis: Redis[str], name: str) -> None:
+def set_active_policy_name(redis: Redis, name: str) -> None:
     if name not in POLICIES:
         raise ValueError(f"unknown placement policy: {name!r}")
     redis.set(ACTIVE_POLICY_KEY, name)

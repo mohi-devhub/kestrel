@@ -44,7 +44,7 @@ def upgrade() -> None:
         sa.Column("period_end", sa.TIMESTAMP(timezone=True), nullable=False),
         sa.Column("total_gpu_seconds", sa.Numeric(), nullable=False),
         sa.Column("total_cost", sa.Numeric(12, 2), nullable=False),
-        sa.Column("breakdown", JSONB(), nullable=False),
+        sa.Column("breakdown", JSONB, nullable=False),
         sa.Column("generated_at", sa.TIMESTAMP(timezone=True), nullable=False),
     )
     op.create_index("ix_billing_snapshots_tenant", "billing_snapshots", ["tenant_id"])
