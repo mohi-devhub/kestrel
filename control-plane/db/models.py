@@ -55,6 +55,10 @@ class Workload(Base):
     k8s_name: Mapped[str] = mapped_column(String, nullable=False)
     node_name: Mapped[str | None] = mapped_column(String, nullable=True)
     placement_policy: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Endpoints only (NULL for jobs): the current desired replica count. Seeded at
+    # placement from spec.min_replicas, then owned by the autoscaler. GPU accounting
+    # reads this, not the spec, so a scaled endpoint's footprint stays truthful.
+    replicas: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     admitted_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
@@ -113,3 +117,22 @@ class BillingSnapshot(Base):
     generated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
 
     __table_args__ = (Index("ix_billing_snapshots_tenant", "tenant_id"),)
+
+
+class AutoscaleEvent(Base):
+    """One replica change made by the autoscaler. Append-only — this is both the
+    audit trail and the scale-down stabilization clock (the loop reads the latest
+    row's `at` rather than keeping a second copy of that state elsewhere)."""
+
+    __tablename__ = "autoscale_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    workload_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workloads.id"), nullable=False
+    )
+    from_replicas: Mapped[int] = mapped_column(Integer, nullable=False)
+    to_replicas: Mapped[int] = mapped_column(Integer, nullable=False)
+    reason: Mapped[str] = mapped_column(String, nullable=False)
+    at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+
+    __table_args__ = (Index("ix_autoscale_events_workload_at", "workload_id", "at"),)
