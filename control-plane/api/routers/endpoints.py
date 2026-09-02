@@ -5,7 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from autoscale import LoadSignal, config_for, decide, last_event_at
+from autoscale import LoadSignal, decide
+from autoscale.loop import config_for, last_event_at
 from cluster import ClusterClient
 from cluster.naming import tenant_namespace
 from config import settings
