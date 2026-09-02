@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from db.models import Tenant, Workload
 from metering import MeteringStore
-from scheduler.accounting import effective_gpus
+from scheduler.accounting import workload_gpus
 
 # In-flight statuses: these rows occupy a slot against max_workloads.
 ACTIVE_STATUSES = {"queued", "admitted", "running"}
@@ -92,9 +92,7 @@ class QuotaEnforcer:
         )
         held: dict[uuid.UUID, int] = {}
         for w in running:
-            held[w.tenant_id] = held.get(w.tenant_id, 0) + effective_gpus(
-                w.kind, w.gpus_requested, w.spec
-            )
+            held[w.tenant_id] = held.get(w.tenant_id, 0) + workload_gpus(w)
         return held
 
     def is_over_budget(self, tenant: Tenant, now: datetime) -> bool:
