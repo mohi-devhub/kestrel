@@ -79,17 +79,9 @@ def _place_admitted(db: Session, cluster: ClusterPort, policy: PlacementPolicy) 
     if not rows:
         return 0
 
+    now = datetime.now(UTC)
     state = _build_cluster_state(db, cluster)
     by_id = {w.id: w for w in rows}
-    candidates = [
-        PlacementCandidate(
-            workload_id=w.id,
-            gpus_needed=workload_gpus(w),
-            priority=w.priority,
-            admitted_at=w.admitted_at or w.created_at,
-        )
-        for w in rows
-    ]
 
     # Per-tenant GPU tally, queried once then maintained in memory as we place:
     # the session is autoflush=False, so a mid-loop re-query would miss this
@@ -97,13 +89,25 @@ def _place_admitted(db: Session, cluster: ClusterPort, policy: PlacementPolicy) 
     metering = MeteringStore(db)
     held = QuotaEnforcer(db).running_gpus_by_tenant()
     tenant_ids = {w.tenant_id for w in rows}
-    max_gpus = {
-        t.id: t.max_gpus
-        for t in db.execute(select(Tenant).where(Tenant.id.in_(tenant_ids))).scalars()
+    tenants = list(db.execute(select(Tenant).where(Tenant.id.in_(tenant_ids))).scalars())
+    max_gpus = {t.id: t.max_gpus for t in tenants}
+    runway_by_tenant = {
+        t.id: metering.runway_for(t, held.get(t.id, 0), now).runway_seconds for t in tenants
     }
 
+    candidates = [
+        PlacementCandidate(
+            workload_id=w.id,
+            gpus_needed=workload_gpus(w),
+            priority=w.priority,
+            admitted_at=w.admitted_at or w.created_at,
+            tenant_runway_seconds=runway_by_tenant.get(w.tenant_id),
+        )
+        for w in rows
+    ]
+
     placed = 0
-    for candidate in policy.order(candidates):
+    for candidate in policy.order(candidates, now):
         w = by_id[candidate.workload_id]
         if not QuotaEnforcer.check_placement(
             max_gpus[w.tenant_id], held.get(w.tenant_id, 0), candidate.gpus_needed

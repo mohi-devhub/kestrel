@@ -18,6 +18,7 @@ import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
+from decimal import Decimal
 
 
 @dataclass
@@ -43,19 +44,34 @@ class ClusterState:
 
 @dataclass(frozen=True)
 class PlacementCandidate:
-    """An admitted-but-unplaced workload, reduced to what placement needs."""
+    """An admitted-but-unplaced workload, reduced to what placement needs.
+
+    `tenant_runway_seconds` is the owning tenant's budget runway at the moment
+    this tick's candidates were built (None: no budget configured, or currently
+    idle — see `economics.runway.runway_seconds`). Only `RunwayFair` reads it;
+    every other policy ignores the field entirely.
+    """
 
     workload_id: uuid.UUID
     gpus_needed: int
     priority: int
     admitted_at: datetime
+    tenant_runway_seconds: Decimal | None = None
 
 
 class PlacementPolicy(ABC):
     name: str
 
-    def order(self, candidates: list[PlacementCandidate]) -> list[PlacementCandidate]:
-        """Order in which candidates get to claim capacity this tick (default FIFO)."""
+    def order(
+        self, candidates: list[PlacementCandidate], now: datetime
+    ) -> list[PlacementCandidate]:
+        """Order in which candidates get to claim capacity this tick (default FIFO).
+
+        `now` is unused by the default and by `Priority` — it exists so a policy
+        like `RunwayFair` can measure how long a candidate has waited without
+        reading the wall clock itself, the same reason `autoscale.policy.decide`
+        takes `now` as an argument instead of calling `datetime.now()`.
+        """
         return sorted(candidates, key=lambda c: c.admitted_at)
 
     @abstractmethod

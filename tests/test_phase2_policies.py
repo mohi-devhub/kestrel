@@ -60,14 +60,14 @@ def test_multi_gpu_is_all_or_nothing() -> None:
 def test_default_order_is_fifo_by_admitted_at() -> None:
     late = _candidate(1, admitted_offset=10)
     early = _candidate(1, admitted_offset=0)
-    assert FirstFit().order([late, early]) == [early, late]
+    assert FirstFit().order([late, early], T0) == [early, late]
 
 
 def test_priority_orders_high_priority_first_fifo_within_priority() -> None:
     low_early = _candidate(1, priority=0, admitted_offset=0)
     high_late = _candidate(1, priority=10, admitted_offset=10)
     high_early = _candidate(1, priority=10, admitted_offset=5)
-    ordered = Priority().order([low_early, high_late, high_early])
+    ordered = Priority().order([low_early, high_late, high_early], T0)
     assert ordered == [high_early, high_late, low_early]
 
 
@@ -79,7 +79,7 @@ def test_priority_wins_the_last_slot() -> None:
     policy = Priority()
 
     placed: dict[uuid.UUID, str | None] = {}
-    for candidate in policy.order([low, high]):
+    for candidate in policy.order([low, high], T0):
         node = policy.select_node(state, candidate)
         if node is not None:
             state.reserve(node, candidate.gpus_needed)
@@ -101,5 +101,6 @@ def test_get_policy_registry() -> None:
     assert get_policy("first_fit").name == "first_fit"
     assert get_policy("bin_packing").name == "bin_packing"
     assert get_policy("priority").name == "priority"
+    assert get_policy("runway_fair").name == "runway_fair"
     with pytest.raises(ValueError):
         get_policy("does-not-exist")
