@@ -7,21 +7,18 @@ get, since they skip Kueue admission entirely.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from db.models import Tenant, Workload
-from metering import MeteringStore
+from metering import EPOCH, MeteringStore
 from scheduler.accounting import workload_gpus
 
 # In-flight statuses: these rows occupy a slot against max_workloads.
 ACTIVE_STATUSES = {"queued", "admitted", "running"}
-
-# All-time window for lifetime budgets.
-EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 
 class QuotaExceeded(Exception):

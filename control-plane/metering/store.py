@@ -9,13 +9,18 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from db.models import UsageEvent
+from db.models import Tenant, UsageEvent
+from economics.runway import RunwayStatus, runway_status
+
+# All-time window for lifetime budgets and runway — shared by QuotaEnforcer's
+# budget check and MeteringStore.runway_for so both read the same tenant history.
+EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 
 @dataclass
@@ -135,3 +140,17 @@ class MeteringStore:
             )
             usage.total_gpu_seconds += gpu_seconds
         return usage
+
+    def runway_for(self, tenant: Tenant, held_gpus: int, now: datetime) -> RunwayStatus:
+        """The tenant's current budget runway (remaining GPU-seconds / burn rate).
+
+        Skips the usage query entirely for an unbudgeted tenant — infinite
+        runway is a fact about the tenant's config, not something a query could
+        change. The scheduler (placement ordering), the autoscaler (budget-
+        clamped scale-up) and the explain endpoint all call this so the three
+        can never compute runway differently for the same tenant.
+        """
+        if tenant.gpu_second_budget is None:
+            return runway_status(None, Decimal(0), held_gpus)
+        used = self.usage_for(tenant.id, EPOCH, now, now).total_gpu_seconds
+        return runway_status(tenant.gpu_second_budget, used, held_gpus)

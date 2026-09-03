@@ -1,3 +1,3 @@
-from metering.store import MeteringStore, UsageBreakdown
+from metering.store import EPOCH, MeteringStore, UsageBreakdown
 
-__all__ = ["MeteringStore", "UsageBreakdown"]
+__all__ = ["EPOCH", "MeteringStore", "UsageBreakdown"]
