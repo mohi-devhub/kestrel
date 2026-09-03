@@ -95,15 +95,24 @@ def clamp_to_capacity(
     gpus_per_replica: int,
     node_free_gpus: int,
     tenant_headroom_gpus: int,
+    budget_headroom_gpus: int | None = None,
 ) -> int:
     """Limit a scale-up to the GPUs actually available to this endpoint.
 
     Every replica of a Deployment lands on the same node (the pod template pins
     nodeName), so growing means finding room on *that* node — and staying inside
-    the tenant's concurrent-GPU quota, the same gate placement applies. Scaling
+    the tenant's concurrent-GPU quota, the same gate placement applies.
+    `budget_headroom_gpus` (see `economics.runway.budget_headroom_gpus`) adds a
+    third limit: don't grow into a footprint the tenant's remaining budget can't
+    sustain for at least one horizon. None means no budget configured, so it
+    imposes no limit — KEDA/HPA-style autoscaling has no equivalent to this gate
+    at all, since it has no visibility into a budget in the first place. Scaling
     down or holding needs nothing, so it always passes.
     """
     if target <= current or gpus_per_replica <= 0:
         return target
-    affordable_gpus = max(0, min(node_free_gpus, tenant_headroom_gpus))
+    limits = [node_free_gpus, tenant_headroom_gpus]
+    if budget_headroom_gpus is not None:
+        limits.append(budget_headroom_gpus)
+    affordable_gpus = max(0, min(limits))
     return min(target, current + affordable_gpus // gpus_per_replica)

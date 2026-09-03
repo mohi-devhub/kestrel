@@ -37,6 +37,7 @@ from autoscale.signal import LoadSignal
 from cluster.protocol import ClusterPort
 from config import settings
 from db.models import AutoscaleEvent, Tenant, Workload
+from economics.runway import budget_headroom_gpus
 from metering import MeteringStore
 from scheduler.accounting import used_gpus_by_node, workload_gpus
 
@@ -99,9 +100,18 @@ def autoscale_once(
     for w in running:
         held[w.tenant_id] = held.get(w.tenant_id, 0) + workload_gpus(w)
     tenant_ids = {w.tenant_id for w in endpoints}
-    max_gpus = {
-        t.id: t.max_gpus
-        for t in db.execute(select(Tenant).where(Tenant.id.in_(tenant_ids))).scalars()
+    tenants = list(db.execute(select(Tenant).where(Tenant.id.in_(tenant_ids))).scalars())
+    max_gpus = {t.id: t.max_gpus for t in tenants}
+    # How many more GPUs each tenant's remaining budget can sustain for at least
+    # one horizon — the gate KEDA/HPA have no equivalent to, since neither has
+    # any notion of a tenant budget in the first place.
+    budget_headroom = {
+        t.id: budget_headroom_gpus(
+            metering.runway_for(t, held.get(t.id, 0), now).remaining_gpu_seconds,
+            held.get(t.id, 0),
+            settings.budget_headroom_horizon_seconds,
+        )
+        for t in tenants
     }
     last_events = last_event_at(db, [w.id for w in endpoints])
 
@@ -119,7 +129,12 @@ def autoscale_once(
         node_free = capacity.get(w.node_name, 0) - used_by_node.get(w.node_name, 0)
         headroom = max_gpus.get(w.tenant_id, 0) - held.get(w.tenant_id, 0)
         target = clamp_to_capacity(
-            decision.target, current, gpus_per_replica, node_free, headroom
+            decision.target,
+            current,
+            gpus_per_replica,
+            node_free,
+            headroom,
+            budget_headroom.get(w.tenant_id),
         )
         if target == current:
             continue

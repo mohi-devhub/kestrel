@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     # Scale-up is immediate; scale-down waits this long after the last replica change
     # so a brief dip in traffic can't flap an endpoint down and straight back up.
     scale_down_stabilization_seconds: float = 30.0
+    # A scale-up may not grow a tenant's burn rate past what their remaining budget
+    # can sustain for this long — the horizon `economics.runway.budget_headroom_gpus`
+    # sizes headroom against.
+    budget_headroom_horizon_seconds: float = 300.0
 
     @field_validator("kubeconfig_path")
     @classmethod

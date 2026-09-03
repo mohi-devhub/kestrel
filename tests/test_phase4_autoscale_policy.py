@@ -217,6 +217,63 @@ def test_clamp_ignores_capacity_for_gpuless_endpoints() -> None:
     assert target == 4
 
 
+# --- budget-headroom clamp -------------------------------------------------------
+
+
+def test_clamp_ignores_budget_when_unset() -> None:
+    # budget_headroom_gpus=None (the default) is "no budget configured" — unconstrained.
+    target = clamp_to_capacity(
+        4, current=1, gpus_per_replica=1, node_free_gpus=8, tenant_headroom_gpus=8
+    )
+    assert target == 4
+
+
+def test_clamp_limits_scale_up_to_budget_headroom() -> None:
+    target = clamp_to_capacity(
+        4,
+        current=1,
+        gpus_per_replica=1,
+        node_free_gpus=8,
+        tenant_headroom_gpus=8,
+        budget_headroom_gpus=2,
+    )
+    assert target == 3
+
+
+def test_clamp_takes_the_tightest_of_all_three_limits() -> None:
+    # Node and quota would allow +8; budget only affords +1.
+    target = clamp_to_capacity(
+        4,
+        current=1,
+        gpus_per_replica=1,
+        node_free_gpus=8,
+        tenant_headroom_gpus=8,
+        budget_headroom_gpus=1,
+    )
+    assert target == 2
+
+
+def test_exhausted_budget_blocks_scale_up_but_not_scale_down() -> None:
+    up = clamp_to_capacity(
+        4,
+        current=1,
+        gpus_per_replica=1,
+        node_free_gpus=8,
+        tenant_headroom_gpus=8,
+        budget_headroom_gpus=0,
+    )
+    assert up == 1
+    down = clamp_to_capacity(
+        0,
+        current=4,
+        gpus_per_replica=1,
+        node_free_gpus=8,
+        tenant_headroom_gpus=8,
+        budget_headroom_gpus=0,
+    )
+    assert down == 0
+
+
 def test_capacity_capped_reason_is_distinguishable() -> None:
     """A capped scale-up is recorded differently from one the load asked for, so the
     audit trail says whether the platform or the traffic set the replica count."""
