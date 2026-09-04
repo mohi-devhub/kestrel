@@ -11,6 +11,7 @@ from config import settings
 from db import get_db
 from db.models import Tenant, Workload
 from metering import MeteringStore
+from obs import quota_rejections
 from quota import QuotaEnforcer, QuotaExceeded
 from schema.workload import JobCreate, WorkloadOut
 
@@ -39,6 +40,7 @@ def submit_job(
     try:
         QuotaEnforcer(db).check_admission(tenant, body.gpus, datetime.now(UTC))
     except QuotaExceeded as exc:
+        quota_rejections.labels(tenant=tenant.slug).inc()
         raise HTTPException(status_code=429, detail=exc.reason) from None
 
     namespace = tenant_namespace(tenant.slug)

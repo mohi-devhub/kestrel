@@ -13,6 +13,7 @@ from config import settings
 from db import get_db
 from db.models import AutoscaleEvent, Tenant, Workload
 from metering import MeteringStore
+from obs import quota_rejections
 from quota import QuotaEnforcer, QuotaExceeded
 from redis_client import get_redis
 from scheduler.accounting import effective_gpus
@@ -46,6 +47,7 @@ def provision_endpoint(
             tenant, effective_gpus("endpoint", body.gpus, spec), datetime.now(UTC)
         )
     except QuotaExceeded as exc:
+        quota_rejections.labels(tenant=tenant.slug).inc()
         raise HTTPException(status_code=429, detail=exc.reason) from None
 
     namespace = tenant_namespace(tenant.slug)
