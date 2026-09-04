@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 
 import { cn } from "cn";
 
+/** Active state carried by an underline on the header rule, not a filled pill:
+ *  one fewer shape competing with the data below. */
 export function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
   const pathname = usePathname();
   const active = pathname === href || pathname.startsWith(`${href}/`);
@@ -13,14 +15,12 @@ export function NavLink({ href, children }: { href: string; children: React.Reac
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "rounded-md px-3 py-1.5 text-sm transition-colors",
-        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-        active
-          ? "bg-secondary font-medium text-secondary-foreground"
-          : "text-muted-foreground hover:text-foreground",
+        "relative px-3 py-[14px] text-[13px] transition-colors",
+        active ? "text-fg" : "text-fg-dim hover:text-fg",
       )}
     >
       {children}
+      {active && <span aria-hidden className="absolute inset-x-2 -bottom-px h-px bg-accent" />}
     </Link>
   );
 }

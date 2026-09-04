@@ -17,23 +17,19 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <div className="min-h-screen">
-          <header className="border-b sticky top-0 z-20 bg-background/85 backdrop-blur">
-            <div className="mx-auto flex max-w-7xl items-center gap-6 px-6 py-3">
-              <Link href="/cluster" className="flex items-baseline gap-2">
-                <span className="text-base font-semibold tracking-tight">Kestrel</span>
-                <span className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                  operator console
-                </span>
-              </Link>
-              <nav className="flex items-center gap-1">
-                <NavLink href="/cluster">Cluster</NavLink>
-                <NavLink href="/tenants">Tenants</NavLink>
-              </nav>
-            </div>
-          </header>
-          <main className="mx-auto max-w-7xl px-6 py-6">{children}</main>
-        </div>
+        <header className="sticky top-0 z-20 border-b border-line bg-bg/90 backdrop-blur">
+          <div className="mx-auto flex h-12 max-w-[1400px] items-center gap-5 px-5">
+            <Link href="/cluster" className="flex items-baseline gap-2">
+              <span className="text-[13px] font-semibold tracking-tight">Kestrel</span>
+              <span className="label">console</span>
+            </Link>
+            <nav className="flex items-center">
+              <NavLink href="/cluster">Cluster</NavLink>
+              <NavLink href="/tenants">Tenants</NavLink>
+            </nav>
+          </div>
+        </header>
+        <main className="mx-auto max-w-[1400px] px-5 py-6">{children}</main>
       </body>
     </html>
   );

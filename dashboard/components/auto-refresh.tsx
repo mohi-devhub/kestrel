@@ -3,14 +3,18 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { cn } from "cn";
+
 /**
  * Re-runs the server components on an interval.
  *
- * The dashboard has no client-side data layer: every panel is a server component
- * reading the control plane directly. Refreshing the route is therefore the whole
- * live-update mechanism, and it keeps a single source of truth for every number on
- * the page. Pauses while the tab is hidden so a backgrounded console stops
- * scraping the control plane.
+ * The console has no client-side data layer: every panel is a server component
+ * reading the control plane directly, so refreshing the route IS the live-update
+ * mechanism and every number on the page keeps one source of truth. Pauses while
+ * the tab is hidden so a backgrounded console stops polling.
+ *
+ * The dot is the one animated thing on the page. It earns it by carrying real
+ * state (polling versus paused) rather than decorating a nav item.
  */
 export function AutoRefresh({ seconds = 5 }: { seconds?: number }) {
   const router = useRouter();
@@ -18,10 +22,9 @@ export function AutoRefresh({ seconds = 5 }: { seconds?: number }) {
 
   useEffect(() => {
     if (!live) return;
-    const tick = () => {
+    const id = setInterval(() => {
       if (document.visibilityState === "visible") router.refresh();
-    };
-    const id = setInterval(tick, seconds * 1000);
+    }, seconds * 1000);
     return () => clearInterval(id);
   }, [router, seconds, live]);
 
@@ -29,18 +32,17 @@ export function AutoRefresh({ seconds = 5 }: { seconds?: number }) {
     <button
       type="button"
       onClick={() => setLive((v) => !v)}
-      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded"
       aria-pressed={live}
+      className="num flex items-center gap-1.5 text-[11px] text-fg-dim hover:text-fg"
     >
       <span
         aria-hidden
-        className={
-          live
-            ? "size-1.5 rounded-full bg-emerald-500 motion-safe:animate-pulse"
-            : "size-1.5 rounded-full bg-muted-foreground"
-        }
+        className={cn(
+          "size-1.5 rounded-full",
+          live ? "bg-ok motion-safe:animate-pulse" : "bg-fg-dim",
+        )}
       />
-      {live ? `live · ${seconds}s` : "paused"}
+      {live ? `live ${seconds}s` : "paused"}
     </button>
   );
 }

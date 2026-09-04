@@ -25,7 +25,7 @@ export type ActionResult = { ok: true; message: string } | { ok: false; message:
 
 function failed(err: unknown): ActionResult {
   if (err instanceof KestrelError) {
-    // A 429 here is the quota enforcer talking — surface its reason verbatim
+    // A 429 here is the quota enforcer talking, so surface its reason verbatim
     // rather than a generic failure, because that reason is the interesting part.
     return { ok: false, message: err.detail };
   }

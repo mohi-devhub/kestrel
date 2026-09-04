@@ -23,7 +23,7 @@ type PromRangeResponse = {
  * A range query, already shaped for charting: numeric values, sorted by time.
  *
  * Returns an empty array rather than throwing when Prometheus is unreachable or
- * has no samples yet — a freshly started stack legitimately has no history, and a
+ * has no samples yet. A freshly started stack legitimately has no history, and a
  * chart with no line is the honest rendering of that.
  */
 export async function queryRange(
@@ -62,7 +62,7 @@ type PromInstantResponse = {
  * An instant query, flattened to {labelValue: number} on one label.
  *
  * Used where the control plane's REST API doesn't already carry the number and a
- * per-row API call would be worse — e.g. every tenant's risk tier on the tenant
+ * per-row API call would be worse, e.g. every tenant's risk tier on the tenant
  * list, which is one query here versus one /explain call per tenant.
  */
 export async function queryInstantBy(

@@ -2,69 +2,70 @@ import type { NodeUsage, Workload } from "@/lib/kestrel";
 import { cn } from "cn";
 
 /**
- * The simulated fleet, one row per node, one cell per GPU.
+ * The fleet, one row per node, one block per GPU.
  *
- * A GPU is the unit the whole platform is accounted in, so the map draws actual
- * GPUs rather than a utilisation percentage — fragmentation (four free GPUs split
- * across four nodes) looks completely different from four free on one node, and
- * that difference is exactly what the placement policies exist to manage.
+ * Drawn as discrete GPU blocks rather than a utilisation percentage because
+ * fragmentation is the thing the placement policies exist to manage, and four
+ * free GPUs spread across four nodes looks nothing like four free on one node.
+ * A percentage hides exactly that difference.
+ *
+ * Held blocks carry the accent; free blocks are a hairline outline, so the
+ * amount of ink on screen is the amount of the cluster in use.
  */
-export function GpuMap({
-  nodes,
-  workloads,
-}: {
-  nodes: NodeUsage[];
-  workloads: Workload[];
-}) {
+export function GpuMap({ nodes, workloads }: { nodes: NodeUsage[]; workloads: Workload[] }) {
   const running = workloads.filter((w) => w.status === "running" && w.node_name);
 
+  if (nodes.length === 0) {
+    return (
+      <p className="border border-dashed border-line px-4 py-8 text-center text-sm text-fg-dim">
+        No GPU nodes reported. Is the kind cluster up?
+      </p>
+    );
+  }
+
   return (
-    <div className="space-y-3">
+    <div className="divide-y divide-line-soft border-y border-line-soft">
       {nodes.map((node) => {
         const here = running.filter((w) => w.node_name === node.name);
-        // Each running workload paints as many cells as it actually holds, so an
-        // endpoint at three replicas occupies three.
-        const cells: (Workload | null)[] = [];
+        const blocks: (Workload | null)[] = [];
         for (const w of here) {
           const held =
             w.kind === "endpoint" ? w.gpus_requested * (w.replicas ?? 0) : w.gpus_requested;
-          for (let i = 0; i < held; i++) cells.push(w);
+          for (let i = 0; i < held; i++) blocks.push(w);
         }
-        while (cells.length < node.gpu_total) cells.push(null);
+        while (blocks.length < node.gpu_total) blocks.push(null);
 
         return (
-          <div key={node.name} className="rounded-lg border bg-card p-3">
-            <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-2">
-              <span className="font-mono text-sm">{node.name}</span>
-              <span className="tabular text-xs text-muted-foreground">
-                {node.gpu_used}/{node.gpu_total} GPUs held
+          <div
+            key={node.name}
+            className="grid grid-cols-[minmax(0,1fr)] gap-2 py-2.5 sm:grid-cols-[190px_minmax(0,1fr)] sm:items-center sm:gap-4"
+          >
+            <div className="flex items-baseline gap-2">
+              <span className="num truncate text-[13px] text-fg">{node.name}</span>
+              <span className="num text-[11px] text-fg-dim">
+                {node.gpu_used}/{node.gpu_total}
               </span>
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {cells.slice(0, node.gpu_total).map((w, i) => (
+
+            <div className="flex flex-wrap gap-1">
+              {blocks.slice(0, node.gpu_total).map((w, i) => (
                 <div
                   key={i}
-                  title={w ? `${w.k8s_name} · ${w.kind}` : "free"}
+                  title={w ? `${w.k8s_name} (${w.kind})` : "free"}
                   className={cn(
-                    "flex h-11 w-24 flex-col justify-center rounded-md border px-2",
+                    "flex h-8 min-w-[86px] flex-1 items-center px-2 sm:max-w-[132px]",
                     w
-                      ? w.kind === "endpoint"
-                        ? "border-violet-500/40 bg-violet-500/12"
-                        : "border-sky-500/40 bg-sky-500/12"
-                      : "border-dashed border-border bg-muted/40",
+                      ? "border border-accent-line bg-accent-weak"
+                      : "border border-dashed border-line",
                   )}
                 >
                   {w ? (
-                    <>
-                      <span className="truncate font-mono text-[10.5px] leading-tight">
-                        {w.k8s_name.replace(/^(job|endpoint)-/, "")}
-                      </span>
-                      <span className="text-[10px] leading-tight text-muted-foreground">
-                        {w.kind}
-                      </span>
-                    </>
+                    <span className="num truncate text-[11px] leading-none text-fg">
+                      {w.k8s_name.replace(/^(job|endpoint)-/, "")}
+                      <span className="text-fg-dim">{w.kind === "endpoint" ? " ep" : " job"}</span>
+                    </span>
                   ) : (
-                    <span className="text-[10px] text-muted-foreground">free</span>
+                    <span className="num text-[11px] leading-none text-fg-dim">free</span>
                   )}
                 </div>
               ))}
@@ -72,11 +73,6 @@ export function GpuMap({
           </div>
         );
       })}
-      {nodes.length === 0 && (
-        <p className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-          No GPU nodes reported. Is the kind cluster up?
-        </p>
-      )}
     </div>
   );
 }

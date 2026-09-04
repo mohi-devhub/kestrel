@@ -53,7 +53,7 @@ export function TimeSeries({
     return (
       <div
         style={{ height }}
-        className="flex items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground"
+        className="flex items-center justify-center border border-dashed border-line text-[11.5px] text-fg-dim"
       >
         {emptyMessage}
       </div>
@@ -73,45 +73,52 @@ export function TimeSeries({
 
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <LineChart data={rows} margin={{ top: 6, right: 10, bottom: 0, left: -18 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+      <LineChart data={rows} margin={{ top: 8, right: 10, bottom: 0, left: 0 }}>
+        <CartesianGrid stroke="var(--color-line-soft)" vertical={false} />
         <XAxis
           dataKey="t"
           tickFormatter={clock}
-          stroke="var(--color-muted-foreground)"
-          fontSize={11}
+          stroke="var(--color-fg-dim)"
+          fontSize={10}
           tickLine={false}
-          minTickGap={48}
+          axisLine={{ stroke: "var(--color-line)" }}
+          minTickGap={44}
+          style={{ fontFamily: "var(--font-mono)" }}
         />
         <YAxis
-          stroke="var(--color-muted-foreground)"
-          fontSize={11}
+          stroke="var(--color-fg-dim)"
+          fontSize={10}
           tickLine={false}
           axisLine={false}
           allowDecimals={!step}
-          width={46}
+          domain={[0, "auto"]}
+          width={30}
+          style={{ fontFamily: "var(--font-mono)" }}
         />
         <Tooltip
           labelFormatter={(t) => clock(Number(t))}
-          formatter={(value, name) => [`${value ?? "—"}${unit}`, String(name)]}
+          formatter={(value, name) => [`${value ?? "-"}${unit}`, String(name)]}
           contentStyle={{
             background: "var(--color-popover)",
-            border: "1px solid var(--color-border)",
-            borderRadius: 8,
-            fontSize: 12,
-            color: "var(--color-popover-foreground)",
+            border: "1px solid var(--color-line-strong)",
+            borderRadius: 3,
+            fontSize: 11,
+            fontFamily: "var(--font-mono)",
+            color: "var(--color-fg)",
           }}
         />
         {/* Past a handful of series a legend costs more height than it explains;
             the tooltip still names every line on hover. */}
-        {names.length > 1 && names.length <= 6 && <Legend wrapperStyle={{ fontSize: 11 }} />}
+        {names.length > 1 && names.length <= 6 && (
+          <Legend wrapperStyle={{ fontSize: 10, fontFamily: "var(--font-mono)" }} iconSize={8} />
+        )}
         {names.map((name, i) => (
           <Line
             key={name}
             type={step ? "stepAfter" : "monotone"}
             dataKey={name}
             stroke={STROKES[i % STROKES.length]}
-            strokeWidth={2}
+            strokeWidth={1.5}
             dot={false}
             isAnimationActive={false}
             connectNulls

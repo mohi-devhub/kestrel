@@ -7,7 +7,7 @@
  *
  * Two credentials are in play, and the split is deliberate:
  *
- *   - The admin token reaches admin-only surfaces — listing tenants, the cluster
+ *   - The admin token reaches admin-only surfaces: listing tenants, the cluster
  *     view, switching the active placement policy.
  *   - Tenant-scoped data (workloads, usage, runway, explain) is read with a real
  *     per-tenant API key, minted on demand through POST /admin/tenants/{id}/api-keys
@@ -161,7 +161,7 @@ export async function asTenant<T>(
   try {
     return await call<T>(path, { "x-kestrel-key": key }, init);
   } catch (err) {
-    // A cached key can outlive the database it was minted against — a reset or a
+    // A cached key can outlive the database it was minted against. A reset or a
     // re-seeded volume leaves this process holding a key the control plane has
     // never seen. Mint once more before giving up.
     if (err instanceof KestrelError && err.status === 401) {
