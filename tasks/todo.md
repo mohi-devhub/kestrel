@@ -71,10 +71,39 @@ Not in the original `docs/PHASES.md` — the differentiator identified after Pha
 - [x] CHECKPOINT shown to user
 
 ## Phase 6 — Observability + dashboard
-- [ ] Prometheus metrics wired (full list in `docs/PLAN.md` §8)
-- [ ] Next.js app scaffold + shadcn/ui
-- [ ] Tenant view (submit, running workloads, usage/cost, quota bars)
-- [ ] Cluster view (GPU map, autoscaling live)
+
+### 6a — Metrics (control plane)
+The three control-plane processes (api, reconciler, autoscaler) share one Postgres but no memory, so
+in-process counters incremented in the reconciler would be invisible on the API's `/metrics`. State
+metrics are therefore *derived at scrape time* from Postgres + the cluster client by a custom
+collector — the same derive-on-read stance `usage_for` already takes. Only genuinely API-process
+events (quota rejections) use a plain in-process counter.
+- [x] `prometheus_client` dependency
+- [x] `obs/metrics.py`: custom collector — queue depth, node GPU used/total, tenant GPU-seconds, autoscale replicas, scheduling latency, workload duration (all `docs/PLAN.md` §8)
+- [x] Runway gauges (`tenant_runway_seconds`, `tenant_risk_tier`) — beyond §8, surfaces Phase 5 on the dashboard
+- [x] `kestrel_quota_rejections_total` counter wired into job/endpoint admission
+- [x] `GET /metrics` on the API app, degrading to empty rather than 500 if the DB is down
+- [x] Unit tests: collector output against real rows
+- [x] Prometheus service + scrape config in docker-compose
+- [x] Fix test-tenant leak: 9 suites created tenants and never swept them (454 rows, ~1400 junk series). Session-scoped sweep in `conftest.py`, pattern-matched so hand-made demo tenants survive.
+
+### 6b — Dashboard scaffold
+- [ ] `GET /admin/tenants` (list) — the dashboard can't enumerate tenants today
+- [ ] Next.js (App Router, TS) + Tailwind + shadcn/ui
+- [ ] Server-side route handlers proxying the control plane + Prometheus, holding the admin token server-side (no tokens in browser, no CORS needed)
+- [ ] Base layout + tenant/cluster nav
+
+### 6c — Tenant view
+- [ ] Tenant picker + submit forms (job / endpoint)
+- [ ] Workload table (status, node, policy, replicas)
+- [ ] Usage + cost panel, quota bars, budget/runway with risk tier
+- [ ] Explain drawer on a workload (Phase 5's `/explain`)
+
+### 6d — Cluster view
+- [ ] Node GPU map (per-node used/free, who holds what)
+- [ ] Active policy switcher (the demo lever)
+- [ ] Live autoscaling + queue-depth charts from Prometheus range queries
+
 - [ ] CHECKPOINT shown to user
 
 ## Phase 7 — Integration demo + polish
