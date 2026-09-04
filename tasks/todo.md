@@ -105,7 +105,7 @@ events (quota rejections) use a plain in-process counter.
 - [x] Active policy switcher (the demo lever)
 - [x] Live autoscaling + queue-depth + GPU-in-use charts from Prometheus range queries
 
-- [ ] CHECKPOINT shown to user
+- [x] CHECKPOINT shown to user
 
 ## Phase 7 — Integration demo + polish
 - [ ] Small real CPU model chosen + verified runnable
@@ -154,3 +154,45 @@ Shipped: `economics/runway.py` (pure `burn_rate`, `remaining_budget`, `runway_se
 Verified: once Docker was available, 156/156 tests pass against the real containerized stack (docker-compose Postgres/Redis + the live kind+KWOK+Kueue cluster) — including the 5 tests that need a real cluster (`test_phase0_cluster.py`, `test_phase1_tenants.py`, `test_phase2_placement.py`, `test_phase3_live.py`, `test_phase4_live.py`) that an earlier, Docker-less pass of this phase could only skip; ruff and mypy strict clean on all 52 control-plane source files. Live CHECKPOINT through the real stack: switched the active policy to `runway_fair` via `POST /admin/policy`; a tenant with a 5 GPU-second budget ran a 1-GPU endpoint past exhaustion, and `GET /workloads/{id}/explain` reported `runway_seconds: 0`, `risk_tier: 3`, `is_exhausted: true` and `quota.passes: false` with the exact reason a subsequent real submission was then rejected with (429) — proving explain's prediction and the real admission gate agree. Then the ordering itself: a tenant with 400 GPU-second budget (already burning 1 GPU, runway ~372s, risk_tier 2) submitted a job *first*; an unbudgeted tenant (infinite runway, risk_tier 0) submitted a job *second* — under `runway_fair`, `explain` showed the healthy tenant's later job at rank 0 and the low-runway tenant's earlier job at rank 1, the exact FIFO-defying flip the policy is for. All demo workloads/tenants cancelled afterward.
 
 Lessons/deviations: (1) Runway computation ended up needing DB access (usage history), so it couldn't live in the pure `economics.runway` module alongside the math it's built from — it's a `MeteringStore` method instead, keeping `economics/runway.py`'s "no DB" promise intact while still giving the scheduler, autoscaler and explain endpoint one shared implementation. (2) `_place_admitted`'s existing apply-loop logic was left untouched (only the candidate-building step gained `now`/runway) rather than refactored into a shared decide/apply split with `explain.py`, since that refactor couldn't be verified against live Postgres in this environment and the existing loop already has real test coverage riding on its current shape — `scheduler/explain.py` therefore duplicates the small ordering-simulation loop rather than sharing it byte-for-byte; worth collapsing once the live suite can confirm a refactor is safe. (3) `RunwayFair` only reorders placement among *admitted* candidates — Kueue admission and `QuotaEnforcer`'s hard budget block happen earlier and are unaffected, which is deliberate: runway is a tie-breaker among already-admitted work, not a new gate.
+
+### Phase 6 (2026-09-05)
+Shipped: `obs/metrics.py` — a Prometheus collector that derives state from Postgres and the cluster at
+scrape time instead of accumulating it in a process, because the API, reconciler and autoscaler share a
+database but no memory, so a counter incremented in the reconciler is invisible on the API's `/metrics`.
+Covers the whole `docs/PLAN.md` §8 set (queue depth, scheduling latency, node GPU total/used, tenant
+GPU-seconds, workload duration by kind, autoscale replicas, quota rejections) plus `tenant_runway_seconds`
+and `tenant_risk_tier` so Phase 5's differentiator is visible on a chart. Quota rejections stay a real
+in-process counter — they are an event on the API request path and happen nowhere else. Collection
+degrades per source: an unreachable Postgres drops the database series, an unreachable cluster drops the
+node series, and `/metrics` still answers 200. Prometheus added to compose (5s scrape, 6h retention).
+`GET /admin/tenants` for the console's tenant switcher. `dashboard/` — Next.js 15 + Tailwind v4 +
+shadcn/ui operator console: cluster view (GPU map drawn as actual GPU cells so fragmentation is visible,
+placement-policy switcher, three live Prometheus charts) and tenant view (quota/budget meters, runway with
+risk tier, workload table with the Phase 5 explain output inline, submit forms, cost breakdown), shipped
+as a compose service on a traced standalone build.
+
+Verified: 175/175 tests against the live stack (17 new on the collector, 2 on the tenant listing); ruff and
+mypy strict clean on 53 source files; dashboard typechecks, lints and builds clean. Live checkpoint through
+the containerized stack: four 2-GPU endpoints placed onto two nodes (4/4 each, the GPU map naming which
+endpoint holds each cell), a fifth left `admitted` because the tenant hit its 8-GPU quota, the stat row
+reading 8/16 held and 2 queued, and all three charts carrying real samples — queue depth spiking to 5 and
+settling at 2, per-node GPU use stepping to 4. Torn down afterward with all 16 GPUs returned.
+
+Lessons/deviations: (1) **Three processes, one database, so metrics had to be derived rather than
+accumulated.** This wasn't a stylistic choice — in-process counters would have silently reported only the
+API server's share of a number the reconciler actually produces. Recomputing histograms from append-only
+rows each scrape is still monotonic, which is what Prometheus actually requires. (2) **The metrics work
+exposed a test leak nobody could see before.** Nine suites created tenant rows and swept only their
+workloads; 454 tenants had accumulated, which became ~1400 junk series the moment one metric existed per
+tenant, and would have made the console's tenant picker useless. Fixed centrally in `conftest.py` rather
+than in nine files, pattern-matched so hand-made demo tenants survive — the first run cleaned 438 rows.
+(3) **The console authenticates as a real tenant rather than bypassing tenant auth.** It holds the admin
+token server-side for admin surfaces, but mints a genuine per-tenant API key for tenant data, so it
+exercises the same path a customer's client would and the Phase 1 auth boundary isn't special-cased for a
+demo. Because the browser never calls the control plane directly, no CORS configuration was needed at all.
+(4) `create-next-app` scaffolded a Next version with a critical CVE; upgraded to 15.5.25 before building on
+it. Two moderate/high advisories remain in build-time postcss transitives that need a Next major bump.
+(5) A first screenshot caught two things HTTP 200s could not: the kind control-plane node (0 GPUs) sitting
+on the GPU map, and a queue-depth legend of 16 flat-zero tenants burying its own chart. Both fixed by
+matching the scheduler's own view of the cluster — ready nodes with GPU capacity, and series that are
+actually non-zero.
