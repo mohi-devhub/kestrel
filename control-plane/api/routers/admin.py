@@ -4,6 +4,7 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from cluster import ClusterClient
@@ -59,6 +60,16 @@ def create_tenant(body: TenantCreate, db: Session = Depends(get_db)) -> Tenant:
     db.commit()
     db.refresh(tenant)
     return tenant
+
+
+@router.get("/tenants", response_model=list[TenantOut])
+def list_tenants(db: Session = Depends(get_db)) -> list[Tenant]:
+    """Every tenant, for the operator console's tenant switcher.
+
+    Deliberately admin-only and deliberately not mirrored on the tenant API: a
+    tenant has no business enumerating its neighbours.
+    """
+    return list(db.execute(select(Tenant).order_by(Tenant.slug)).scalars().all())
 
 
 @router.post("/tenants/{tenant_id}/api-keys", response_model=ApiKeyOut, status_code=201)

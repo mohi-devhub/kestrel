@@ -373,3 +373,34 @@ def test_unfinished_workloads_are_not_observed(db: Session) -> None:
 
     after = _samples(collector)["kestrel_workload_duration_seconds_count"][(("kind", "job"),)]
     assert after == before
+
+
+# --- admin tenant listing (the console's tenant switcher) ----------------------------
+
+
+def test_admin_can_list_tenants(db: Session) -> None:
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+    from config import settings
+
+    tenant = _tenant(db)
+    db.commit()
+
+    client = TestClient(app)
+    resp = client.get("/admin/tenants", headers={"x-kestrel-admin-token": settings.admin_token})
+    assert resp.status_code == 200
+    slugs = [t["slug"] for t in resp.json()]
+    assert tenant.slug in slugs
+
+
+def test_listing_tenants_requires_the_admin_token(db: Session) -> None:
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    client = TestClient(app)
+    assert client.get("/admin/tenants").status_code == 422
+    assert (
+        client.get("/admin/tenants", headers={"x-kestrel-admin-token": "wrong"}).status_code == 401
+    )
