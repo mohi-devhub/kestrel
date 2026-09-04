@@ -211,7 +211,9 @@ def test_jobs_are_not_reported_as_endpoints(db: Session) -> None:
     job = _workload(db, tenant, status="running", node="n1")
     db.commit()
 
-    replicas = _samples(_collector())["kestrel_autoscale_replicas"]
+    # .get, not []: a family with no samples produces no key at all, so indexing
+    # would pass only while some unrelated endpoint happened to be running.
+    replicas = _samples(_collector()).get("kestrel_autoscale_replicas", {})
     assert not any(labels[0][1] == job.k8s_name for labels in replicas)
 
 
