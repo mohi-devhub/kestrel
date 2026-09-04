@@ -22,9 +22,9 @@
   /* ground and ink */
   --bg: oklch(0.981 0.002 250);
   --bg-sunk: oklch(0.955 0.003 250);
-  --fg: oklch(0.205 0.012 255);
-  --fg-muted: oklch(0.505 0.014 255);
-  --fg-dim: oklch(0.625 0.012 255);
+  --fg: oklch(0.175 0.012 255);
+  --fg-muted: oklch(0.435 0.014 255);
+  --fg-dim: oklch(0.552 0.012 255);
 
   /* rules: hairline does the work cards used to do */
   --line: oklch(0.895 0.005 255);
@@ -78,13 +78,13 @@
 :root:has(.dark) {
   --bg: oklch(0.171 0.008 255);
   --bg-sunk: oklch(0.148 0.008 255);
-  --fg: oklch(0.945 0.004 250);
-  --fg-muted: oklch(0.678 0.013 255);
-  --fg-dim: oklch(0.552 0.013 255);
+  --fg: oklch(0.975 0.003 250);
+  --fg-muted: oklch(0.762 0.012 255);
+  --fg-dim: oklch(0.632 0.013 255);
 
-  --line: oklch(0.272 0.011 255);
-  --line-soft: oklch(0.225 0.01 255);
-  --line-strong: oklch(0.352 0.013 255);
+  --line: oklch(0.305 0.011 255);
+  --line-soft: oklch(0.248 0.01 255);
+  --line-strong: oklch(0.408 0.013 255);
 
   --accent: oklch(0.685 0.153 250);
   --accent-fg: oklch(0.16 0.01 255);
@@ -119,13 +119,13 @@
   :root:not(.light) {
     --bg: oklch(0.171 0.008 255);
     --bg-sunk: oklch(0.148 0.008 255);
-    --fg: oklch(0.945 0.004 250);
-    --fg-muted: oklch(0.678 0.013 255);
-    --fg-dim: oklch(0.552 0.013 255);
+    --fg: oklch(0.975 0.003 250);
+    --fg-muted: oklch(0.762 0.012 255);
+    --fg-dim: oklch(0.632 0.013 255);
 
-    --line: oklch(0.272 0.011 255);
-    --line-soft: oklch(0.225 0.01 255);
-    --line-strong: oklch(0.352 0.013 255);
+    --line: oklch(0.305 0.011 255);
+    --line-soft: oklch(0.248 0.01 255);
+    --line-strong: oklch(0.408 0.013 255);
 
     --accent: oklch(0.685 0.153 250);
     --accent-fg: oklch(0.16 0.01 255);
@@ -200,8 +200,8 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
 
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-sans-face);
+  --font-mono: var(--font-mono-face);
 
   /* one radius, everywhere */
   --radius-sm: var(--radius);
@@ -219,21 +219,36 @@
   body {
     background: var(--bg);
     color: var(--fg);
-    font-feature-settings: "cv11", "ss01";
+    font-size: 13.5px;
+    letter-spacing: -0.006em;
+  }
+
+  h1 {
+    letter-spacing: -0.028em;
   }
 
   /* Every reading on this page is a number in a column. */
   .num {
     font-family: var(--font-mono), ui-monospace, monospace;
     font-variant-numeric: tabular-nums;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
+  }
+
+  /* Display readings: large, tight, and set in the mono so the digits are the
+     same shapes as every other number on the page. */
+  .reading {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    letter-spacing: -0.045em;
   }
 
   /* Column and field labels. Functional, not decorative eyebrows. */
   .label {
-    font-size: 10px;
+    font-size: 10.5px;
+    font-weight: 500;
     line-height: 1.3;
-    letter-spacing: 0.09em;
+    letter-spacing: 0.11em;
     text-transform: uppercase;
     color: var(--fg-dim);
   }

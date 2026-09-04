@@ -43,8 +43,8 @@ export default async function ClusterPage() {
     <div className="space-y-7">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h1 className="text-[15px] font-semibold tracking-tight">Cluster</h1>
-          <p className="text-[12px] text-fg-dim">
+          <h1 className="text-[19px] font-semibold">Cluster</h1>
+          <p className="text-[12.5px] text-fg-dim">
             Simulated GPU fleet, from the control plane&rsquo;s own accounting.
           </p>
         </div>
@@ -96,7 +96,7 @@ export default async function ClusterPage() {
                 ))}
               </ul>
             ) : (
-              <p className="text-[12px] text-fg-dim">
+              <p className="text-[12.5px] text-fg-dim">
                 Nothing submitted yet. Pick a tenant on{" "}
                 <Link href="/tenants" className="text-accent underline underline-offset-2">
                   Tenants

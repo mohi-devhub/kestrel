@@ -69,7 +69,7 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
           <Link href="/tenants" className="text-[11px] text-fg-dim hover:text-fg">
             Tenants
           </Link>
-          <h1 className="num mt-0.5 text-[19px] font-medium tracking-tight">{tenant.slug}</h1>
+          <h1 className="reading mt-1 text-[24px] leading-none">{tenant.slug}</h1>
           <p className="text-[12px] text-fg-dim">
             ${tenant.price_per_gpu_hour} per GPU-hour
           </p>

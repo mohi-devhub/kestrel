@@ -41,31 +41,37 @@ export function GpuMap({ nodes, workloads }: { nodes: NodeUsage[]; workloads: Wo
             className="grid grid-cols-[minmax(0,1fr)] gap-2 py-2.5 sm:grid-cols-[190px_minmax(0,1fr)] sm:items-center sm:gap-4"
           >
             <div className="flex items-baseline gap-2">
-              <span className="num truncate text-[13px] text-fg">{node.name}</span>
-              <span className="num text-[11px] text-fg-dim">
+              <span className="num truncate text-[13px] font-medium text-fg">{node.name}</span>
+              <span className="num text-[11.5px] text-fg-dim">
                 {node.gpu_used}/{node.gpu_total}
               </span>
             </div>
 
-            <div className="flex flex-wrap gap-1">
+            {/* Exactly one column per GPU, so the blocks fill the node row
+                instead of trailing off into ragged space and the rows stay
+                aligned with each other across nodes. */}
+            <div
+              className="grid gap-1"
+              style={{ gridTemplateColumns: `repeat(${node.gpu_total}, minmax(0, 1fr))` }}
+            >
               {blocks.slice(0, node.gpu_total).map((w, i) => (
                 <div
                   key={i}
                   title={w ? `${w.k8s_name} (${w.kind})` : "free"}
                   className={cn(
-                    "flex h-8 min-w-[86px] flex-1 items-center px-2 sm:max-w-[132px]",
+                    "flex h-10 items-center overflow-hidden px-2.5",
                     w
                       ? "border border-accent-line bg-accent-weak"
                       : "border border-dashed border-line",
                   )}
                 >
                   {w ? (
-                    <span className="num truncate text-[11px] leading-none text-fg">
+                    <span className="num truncate text-[11.5px] leading-none text-fg">
                       {w.k8s_name.replace(/^(job|endpoint)-/, "")}
                       <span className="text-fg-dim">{w.kind === "endpoint" ? " ep" : " job"}</span>
                     </span>
                   ) : (
-                    <span className="num text-[11px] leading-none text-fg-dim">free</span>
+                    <span className="num text-[11.5px] leading-none text-fg-dim">free</span>
                   )}
                 </div>
               ))}

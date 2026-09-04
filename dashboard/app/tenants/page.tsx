@@ -47,8 +47,8 @@ export default async function TenantsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h1 className="text-[15px] font-semibold tracking-tight">Tenants</h1>
-          <p className="text-[12px] text-fg-dim">
+          <h1 className="text-[19px] font-semibold">Tenants</h1>
+          <p className="text-[12.5px] text-fg-dim">
             Pick one to submit work and read its meter.
           </p>
         </div>

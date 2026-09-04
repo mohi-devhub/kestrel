@@ -48,11 +48,11 @@ export function Reading({
   tone?: "ok" | "warn" | "crit";
 }) {
   return (
-    <div className="px-4 py-3 first:pl-0">
+    <div className="px-4 py-3.5 first:pl-0">
       <div className="label">{label}</div>
       <div
         className={cn(
-          "num mt-1.5 text-[26px] leading-none",
+          "reading mt-2 text-[32px] leading-none",
           tone === "ok" && "text-ok",
           tone === "warn" && "text-warn",
           tone === "crit" && "text-crit",
@@ -60,7 +60,7 @@ export function Reading({
       >
         {value}
       </div>
-      {sub && <div className="mt-1.5 text-[11px] leading-tight text-fg-dim">{sub}</div>}
+      {sub && <div className="mt-2 text-[11.5px] leading-tight text-fg-dim">{sub}</div>}
     </div>
   );
 }
@@ -112,7 +112,7 @@ export function Status({ status }: { status: string }) {
           ? "text-crit bg-crit-weak"
           : "text-fg-dim bg-bg-sunk";
   return (
-    <span className={cn("num inline-block px-1.5 py-0.5 text-[11px] leading-tight", tone)}>
+    <span className={cn("num inline-block px-1.5 py-0.5 text-[11.5px] leading-tight", tone)}>
       {status}
     </span>
   );
