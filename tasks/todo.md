@@ -88,21 +88,22 @@ events (quota rejections) use a plain in-process counter.
 - [x] Fix test-tenant leak: 9 suites created tenants and never swept them (454 rows, ~1400 junk series). Session-scoped sweep in `conftest.py`, pattern-matched so hand-made demo tenants survive.
 
 ### 6b — Dashboard scaffold
-- [ ] `GET /admin/tenants` (list) — the dashboard can't enumerate tenants today
-- [ ] Next.js (App Router, TS) + Tailwind + shadcn/ui
-- [ ] Server-side route handlers proxying the control plane + Prometheus, holding the admin token server-side (no tokens in browser, no CORS needed)
-- [ ] Base layout + tenant/cluster nav
+- [x] `GET /admin/tenants` (list) — the dashboard can't enumerate tenants today
+- [x] Next.js (App Router, TS) + Tailwind + shadcn/ui
+- [x] Server-side client + server actions holding the admin token, minting a real per-tenant key on demand (no tokens in browser, no CORS needed)
+- [x] Base layout + tenant/cluster nav, auto-refresh that pauses on a hidden tab
+- [x] Dockerfile (standalone output) + compose service, so one-command bring-up still holds
 
 ### 6c — Tenant view
-- [ ] Tenant picker + submit forms (job / endpoint)
-- [ ] Workload table (status, node, policy, replicas)
-- [ ] Usage + cost panel, quota bars, budget/runway with risk tier
-- [ ] Explain drawer on a workload (Phase 5's `/explain`)
+- [x] Tenant list + submit forms (job / endpoint)
+- [x] Workload table (status, node, policy, replicas)
+- [x] Usage + cost panel, quota bars, budget/runway with risk tier
+- [x] Explain row expansion on a workload (Phase 5's `/explain`)
 
 ### 6d — Cluster view
-- [ ] Node GPU map (per-node used/free, who holds what)
-- [ ] Active policy switcher (the demo lever)
-- [ ] Live autoscaling + queue-depth charts from Prometheus range queries
+- [x] Node GPU map (per-node used/free, who holds what)
+- [x] Active policy switcher (the demo lever)
+- [x] Live autoscaling + queue-depth + GPU-in-use charts from Prometheus range queries
 
 - [ ] CHECKPOINT shown to user
 
