@@ -105,6 +105,22 @@ services:
     depends_on:
       - control-plane
 
+  dashboard:
+    build:
+      context: ../dashboard
+    environment:
+      # Server-side only. The admin token never reaches the browser: every call to
+      # the control plane is made from the Next.js server, which is also why the
+      # control plane needs no CORS configuration.
+      KESTREL_API_URL: http://control-plane:8000
+      KESTREL_ADMIN_TOKEN: ${ADMIN_TOKEN:-dev-admin-token}
+      PROMETHEUS_URL: http://prometheus:9090
+    ports:
+      - "3000:3000"
+    depends_on:
+      - control-plane
+      - prometheus
+
 networks:
   kind:
     external: true
