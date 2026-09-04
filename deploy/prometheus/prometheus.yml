@@ -1,0 +1,11 @@
+# Scrapes the control-plane API only. The reconciler and autoscaler expose no
+# metrics of their own by design: everything they affect is state in Postgres,
+# which the API's collector derives at scrape time. See control-plane/obs/metrics.py.
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: kestrel-control-plane
+    static_configs:
+      - targets: ["control-plane:8000"]

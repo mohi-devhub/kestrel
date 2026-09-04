@@ -89,9 +89,26 @@ services:
       - default
       - kind
 
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      # The dashboard queries this directly from its server-side routes; no Grafana
+      # in v1, so the retention only has to outlive a demo run.
+      - --storage.tsdb.retention.time=6h
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - kestrel-prometheus:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - control-plane
+
 networks:
   kind:
     external: true
 
 volumes:
   kestrel-postgres:
+  kestrel-prometheus:
