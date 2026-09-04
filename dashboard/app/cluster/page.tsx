@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { AutoRefresh } from "@/components/auto-refresh";
 import { GpuMap } from "@/components/gpu-map";
-import { Reading, ReadingRow, Section, Status } from "@/components/panel";
+import { PageHead, Panel, Stat, StatRow, Status } from "@/components/shell";
 import { PolicySwitcher } from "@/components/policy-switcher";
 import { TimeSeries } from "@/components/timeseries";
 import { activePolicy, clusterNodes, clusterWorkloads, listTenants } from "@/lib/kestrel";
@@ -26,131 +26,119 @@ export default async function ClusterPage() {
 
   const [replicaSeries, queueSeries, nodeSeries] = await Promise.all([
     queryRange("kestrel_autoscale_replicas"),
-    // Only tenants that actually queued something in the window. Without the
-    // filter every tenant contributes a flat-zero line and the legend buries the
-    // chart it belongs to.
+    // Only tenants that actually queued in the window; otherwise every tenant
+    // contributes a flat-zero line and the legend buries its own chart.
     queryRange("sum by (tenant) (kestrel_queue_depth) > 0"),
-    queryRange("kestrel_node_gpu_used"),
+    queryRange("sum(kestrel_node_gpu_used)"),
   ]);
 
   const gpuTotal = nodes.reduce((n, x) => n + x.gpu_total, 0);
   const gpuUsed = nodes.reduce((n, x) => n + x.gpu_used, 0);
   const queued = workloads.filter((w) => w.status === "queued" || w.status === "admitted");
   const running = workloads.filter((w) => w.status === "running");
-  const recent = [...workloads].sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 6);
+  const recent = [...workloads].sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 7);
 
   return (
-    <div className="space-y-7">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <div>
-          <h1 className="text-[19px] font-semibold">Cluster</h1>
-          <p className="text-[12.5px] text-fg-dim">
-            Simulated GPU fleet, from the control plane&rsquo;s own accounting.
-          </p>
-        </div>
-        <AutoRefresh seconds={5} />
-      </div>
+    <div className="flex flex-col gap-5">
+      <PageHead
+        title="Cluster"
+        sub="Simulated GPU fleet, from the control plane's own accounting."
+        aside={<AutoRefresh seconds={5} />}
+      />
 
-      <ReadingRow>
-        <Reading
+      <StatRow>
+        <Stat
           label="GPUs held"
           value={
             <>
               {gpuUsed}
-              <span className="text-fg-dim">/{gpuTotal}</span>
+              <span className="text-ink-4">/{gpuTotal}</span>
             </>
           }
-          sub={`across ${nodes.length} nodes`}
+          sub={`${nodes.length} nodes, ${gpuTotal - gpuUsed} free`}
+          tone={gpuUsed > 0 ? "accent" : undefined}
         />
-        <Reading label="Running" value={running.length} sub="workloads on nodes" />
-        <Reading
+        <Stat label="Running" value={running.length} sub="workloads on nodes" tone="ok" />
+        <Stat
           label="Queued"
           value={queued.length}
           sub="awaiting capacity"
-          tone={queued.length > 0 ? "warn" : undefined}
+          tone={queued.length > 0 ? "queue" : undefined}
         />
-        <Reading label="Tenants" value={tenants.length} sub="with quota here" />
-      </ReadingRow>
+        <Stat label="Tenants" value={tenants.length} sub="with quota on this cluster" />
+      </StatRow>
 
-      <div className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_268px]">
-        <Section title="GPU map">
+      {/* Charts sit directly under the stats rather than at the page foot. The
+          previous layout put a short map beside a tall column and left a third
+          of the viewport empty below it. */}
+      <div className="grid gap-5 xl:grid-cols-3">
+        <Panel
+          title="GPUs in use"
+          aside={
+            promUp ? (
+              <span className="t-mono text-[10.5px] text-ink-4">15m</span>
+            ) : (
+              <span className="text-[10.5px] text-ink-4">Prometheus down</span>
+            )
+          }
+        >
+          <TimeSeries series={nodeSeries} labelKey="__total" step height={132} unit=" GPU" />
+        </Panel>
+        <Panel title="Endpoint replicas">
+          <TimeSeries
+            series={replicaSeries}
+            labelKey="endpoint"
+            step
+            height={132}
+            emptyMessage="No endpoints scaling in this window."
+          />
+        </Panel>
+        <Panel title="Queue depth">
+          <TimeSeries
+            series={queueSeries}
+            labelKey="tenant"
+            step
+            height={132}
+            emptyMessage="Nothing has queued in this window."
+          />
+        </Panel>
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <Panel title="GPU map" flush>
           <GpuMap nodes={nodes} workloads={workloads} />
-        </Section>
+        </Panel>
 
-        <div className="space-y-7">
-          <Section title="Placement policy">
+        <div className="flex flex-col gap-5">
+          <Panel title="Placement policy" bodyClassName="p-2">
             <PolicySwitcher active={policy.name} />
-          </Section>
+          </Panel>
 
-          <Section title="Recent">
+          <Panel title="Recent" flush>
             {recent.length > 0 ? (
-              <ul className="divide-y divide-line-soft border-y border-line-soft">
+              <ul className="divide-y divide-hair">
                 {recent.map((w) => (
-                  <li key={w.id} className="flex items-center justify-between gap-2 py-1.5">
-                    <span className="num truncate text-[11.5px]">{w.k8s_name}</span>
+                  <li key={w.id} className="flex items-center justify-between gap-2 px-4 py-2">
+                    <span className="t-mono truncate text-[11.5px] text-ink-2">{w.k8s_name}</span>
                     <span className="flex shrink-0 items-center gap-2">
-                      <span className="num text-[11px] text-fg-dim">{ago(w.created_at)}</span>
+                      <span className="t-mono text-[11px] text-ink-4">{ago(w.created_at)}</span>
                       <Status status={w.status} />
                     </span>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-[12.5px] text-fg-dim">
+              <p className="px-4 py-6 text-[12.5px] text-ink-4">
                 Nothing submitted yet. Pick a tenant on{" "}
                 <Link href="/tenants" className="text-accent underline underline-offset-2">
                   Tenants
-                </Link>{" "}
-                to submit work.
+                </Link>
+                .
               </p>
             )}
-          </Section>
+          </Panel>
         </div>
       </div>
-
-      <Section
-        title="Last 15 minutes"
-        aside={
-          promUp ? undefined : (
-            <span className="text-[11px] text-fg-dim">Prometheus unreachable</span>
-          )
-        }
-      >
-        <div className="grid gap-6 lg:grid-cols-3">
-          <Chart title="Endpoint replicas" caption="Autoscaler decisions, per endpoint">
-            <TimeSeries series={replicaSeries} labelKey="endpoint" step />
-          </Chart>
-          <Chart title="Queue depth" caption="Submitted but not running, per tenant">
-            <TimeSeries
-              series={queueSeries}
-              labelKey="tenant"
-              step
-              emptyMessage="Nothing has queued in this window."
-            />
-          </Chart>
-          <Chart title="GPUs in use" caption="Per node, control-plane accounting">
-            <TimeSeries series={nodeSeries} labelKey="node" step />
-          </Chart>
-        </div>
-      </Section>
-    </div>
-  );
-}
-
-function Chart({
-  title,
-  caption,
-  children,
-}: {
-  title: string;
-  caption: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="min-w-0">
-      <div className="text-[12.5px] text-fg">{title}</div>
-      <div className="mb-2 text-[11px] text-fg-dim">{caption}</div>
-      {children}
     </div>
   );
 }

@@ -1,15 +1,9 @@
 import type { Metadata } from "next";
 import { Instrument_Sans, JetBrains_Mono } from "next/font/google";
-import Link from "next/link";
 
 import "./globals.css";
-import { NavLink } from "@/components/nav-link";
+import { Sidebar } from "@/components/sidebar";
 
-// Instrument Sans carries the personality: tight spacing, slightly wide
-// letterforms, and enough character to not read as a framework default.
-// JetBrains Mono does the work: it has the clearest 0/O and 1/l separation of
-// any free mono, which matters when every node name and GPU count on this page
-// is set in it.
 const sans = Instrument_Sans({
   variable: "--font-sans-face",
   subsets: ["latin"],
@@ -29,20 +23,16 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${sans.variable} ${mono.variable} antialiased`}>
-        <header className="sticky top-0 z-20 border-b border-line bg-bg/90 backdrop-blur">
-          <div className="mx-auto flex h-12 max-w-[1400px] items-center gap-5 px-5">
-            <Link href="/cluster" className="flex items-baseline gap-2">
-              <span className="text-[14px] font-semibold tracking-[-0.02em]">Kestrel</span>
-              <span className="label">console</span>
-            </Link>
-            <nav className="flex items-center">
-              <NavLink href="/cluster">Cluster</NavLink>
-              <NavLink href="/tenants">Tenants</NavLink>
-            </nav>
+      <body className={`${sans.variable} ${mono.variable}`}>
+        {/* Sidebar rather than a top bar: it anchors the left edge, gives the
+            content a bounded column instead of letting it float across a wide
+            viewport, and is where anyone who uses a console expects nav to be. */}
+        <div className="flex min-h-[100dvh]">
+          <Sidebar />
+          <div className="min-w-0 flex-1">
+            <div className="mx-auto max-w-[1240px] px-6 py-6 lg:px-8 lg:py-8">{children}</div>
           </div>
-        </header>
-        <main className="mx-auto max-w-[1400px] px-5 py-6">{children}</main>
+        </div>
       </body>
     </html>
   );

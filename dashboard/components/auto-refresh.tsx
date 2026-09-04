@@ -8,13 +8,9 @@ import { cn } from "cn";
 /**
  * Re-runs the server components on an interval.
  *
- * The console has no client-side data layer: every panel is a server component
- * reading the control plane directly, so refreshing the route IS the live-update
- * mechanism and every number on the page keeps one source of truth. Pauses while
- * the tab is hidden so a backgrounded console stops polling.
- *
- * The dot is the one animated thing on the page. It earns it by carrying real
- * state (polling versus paused) rather than decorating a nav item.
+ * There is no client-side data layer: every panel is a server component reading
+ * the control plane directly, so refreshing the route IS the live-update
+ * mechanism and every number keeps one source of truth. Pauses on a hidden tab.
  */
 export function AutoRefresh({ seconds = 5 }: { seconds?: number }) {
   const router = useRouter();
@@ -33,13 +29,13 @@ export function AutoRefresh({ seconds = 5 }: { seconds?: number }) {
       type="button"
       onClick={() => setLive((v) => !v)}
       aria-pressed={live}
-      className="num flex items-center gap-1.5 text-[11px] text-fg-dim hover:text-fg"
+      className="t-mono flex items-center gap-1.5 rounded-sm border border-hair bg-s2 px-2 py-1 text-[11px] text-ink-3 hover:border-hair-2 hover:text-ink"
     >
       <span
         aria-hidden
         className={cn(
           "size-1.5 rounded-full",
-          live ? "bg-ok motion-safe:animate-pulse" : "bg-fg-dim",
+          live ? "bg-ok motion-safe:animate-pulse" : "bg-ink-4",
         )}
       />
       {live ? `live ${seconds}s` : "paused"}

@@ -37,7 +37,7 @@ export function runway(seconds: string | number | null): string {
 export const RISK_TIER_LABEL = ["safe", "under 6h", "under 30m", "under 5m"] as const;
 
 export function riskTone(tier: number): string {
-  return ["text-ok", "text-warn", "text-warn", "text-crit"][tier] ?? "text-fg-dim";
+  return ["text-ok", "text-ink-2", "text-accent", "text-crit"][tier] ?? "text-ink-4";
 }
 
 export function ago(iso: string | null): string {

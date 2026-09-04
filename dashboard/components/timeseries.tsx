@@ -13,12 +13,14 @@ import {
 
 import type { Series } from "@/lib/prom";
 
+// Accent first, then cool neutrals. Series colour is identity, not decoration,
+// so the palette stays inside the console's own range.
 const STROKES = [
-  "var(--color-chart-1)",
-  "var(--color-chart-2)",
-  "var(--color-chart-3)",
-  "var(--color-chart-4)",
-  "var(--color-chart-5)",
+  "var(--color-accent)",
+  "var(--color-queue)",
+  "var(--color-ok)",
+  "var(--color-ink-3)",
+  "var(--color-crit)",
 ];
 
 function clock(t: number): string {
@@ -53,7 +55,7 @@ export function TimeSeries({
     return (
       <div
         style={{ height }}
-        className="flex items-center justify-center border border-dashed border-line text-[11.5px] text-fg-dim"
+        className="flex items-center justify-center rounded-sm border border-dashed border-hair-2 text-[11.5px] text-ink-4"
       >
         {emptyMessage}
       </div>
@@ -74,19 +76,19 @@ export function TimeSeries({
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart data={rows} margin={{ top: 8, right: 10, bottom: 0, left: 0 }}>
-        <CartesianGrid stroke="var(--color-line-soft)" vertical={false} />
+        <CartesianGrid stroke="var(--color-hair)" vertical={false} />
         <XAxis
           dataKey="t"
           tickFormatter={clock}
-          stroke="var(--color-fg-dim)"
+          stroke="var(--color-ink-4)"
           fontSize={10}
           tickLine={false}
-          axisLine={{ stroke: "var(--color-line)" }}
+          axisLine={{ stroke: "var(--color-hair)" }}
           minTickGap={44}
           style={{ fontFamily: "var(--font-mono)" }}
         />
         <YAxis
-          stroke="var(--color-fg-dim)"
+          stroke="var(--color-ink-4)"
           fontSize={10}
           tickLine={false}
           axisLine={false}
@@ -99,12 +101,12 @@ export function TimeSeries({
           labelFormatter={(t) => clock(Number(t))}
           formatter={(value, name) => [`${value ?? "-"}${unit}`, String(name)]}
           contentStyle={{
-            background: "var(--color-popover)",
-            border: "1px solid var(--color-line-strong)",
-            borderRadius: 3,
+            background: "var(--color-s3)",
+            border: "1px solid var(--color-hair-2)",
+            borderRadius: 8,
             fontSize: 11,
             fontFamily: "var(--font-mono)",
-            color: "var(--color-fg)",
+            color: "var(--color-ink)",
           }}
         />
         {/* Past a handful of series a legend costs more height than it explains;

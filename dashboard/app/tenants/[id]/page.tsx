@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AutoRefresh } from "@/components/auto-refresh";
-import { Capacity, Reading, ReadingRow, Section } from "@/components/panel";
+import { Meter, PageHead, Panel, Stat, StatRow } from "@/components/shell";
 import { SubmitForms } from "@/components/submit-forms";
 import { TimeSeries } from "@/components/timeseries";
 import { WorkloadRow } from "@/components/workload-row";
@@ -39,8 +39,8 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
     0,
   );
 
-  // Runway for the tenant as a whole is read off a live workload's explain rather
-  // than recomputed here, so this page cannot disagree with the scheduler.
+  // Runway is read off a live workload's explain rather than recomputed here, so
+  // this page cannot disagree with the scheduler.
   let tenantRunway: Explain["runway"] | null = null;
   const probe = running[0] ?? workloads[0];
   if (probe) {
@@ -63,40 +63,39 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
   }
 
   return (
-    <div className="space-y-7">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <Link href="/tenants" className="text-[11px] text-fg-dim hover:text-fg">
+    <div className="flex flex-col gap-5">
+      <PageHead
+        back={
+          <Link href="/tenants" className="mb-1 inline-block text-[11.5px] text-ink-4 hover:text-ink">
             Tenants
           </Link>
-          <h1 className="reading mt-1 text-[24px] leading-none">{tenant.slug}</h1>
-          <p className="text-[12px] text-fg-dim">
-            ${tenant.price_per_gpu_hour} per GPU-hour
-          </p>
-        </div>
-        <AutoRefresh seconds={5} />
-      </div>
+        }
+        title={<span className="t-mono text-[20px]">{tenant.slug}</span>}
+        sub={`${tenant.name} · $${tenant.price_per_gpu_hour} per GPU-hour`}
+        aside={<AutoRefresh seconds={5} />}
+      />
 
-      <ReadingRow>
-        <Reading
+      <StatRow>
+        <Stat
           label="Concurrent GPUs"
           value={
             <>
               {held}
-              <span className="text-fg-dim">/{tenant.max_gpus}</span>
+              <span className="text-ink-4">/{tenant.max_gpus}</span>
             </>
           }
-          sub={<Capacity used={held} total={tenant.max_gpus} className="mt-0.5 max-w-[120px]" />}
+          sub={<Meter used={held} total={tenant.max_gpus} className="mt-1 max-w-[130px]" />}
+          tone={held > 0 ? "accent" : undefined}
         />
-        <Reading
+        <Stat
           label="Budget"
           value={
             tenant.gpu_second_budget === null ? (
-              <span className="text-fg-muted">none</span>
+              <span className="text-ink-3">none</span>
             ) : (
               <>
                 {budgetUsed.toFixed(0)}
-                <span className="text-fg-dim">/{tenant.gpu_second_budget}s</span>
+                <span className="text-ink-4">/{tenant.gpu_second_budget}</span>
               </>
             )
           }
@@ -104,15 +103,11 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
             tenant.gpu_second_budget === null ? (
               "no cap configured"
             ) : (
-              <Capacity
-                used={budgetUsed}
-                total={tenant.gpu_second_budget}
-                className="mt-0.5 max-w-[120px]"
-              />
+              <Meter used={budgetUsed} total={tenant.gpu_second_budget} className="mt-1 max-w-[130px]" />
             )
           }
         />
-        <Reading
+        <Stat
           label="Runway"
           value={
             tenantRunway ? (
@@ -120,7 +115,7 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
                 {runway(tenantRunway.runway_seconds)}
               </span>
             ) : (
-              <span className="text-fg-dim">-</span>
+              <span className="text-ink-4">-</span>
             )
           }
           sub={
@@ -129,31 +124,31 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
               : "submit a workload to read it"
           }
         />
-        <Reading
+        <Stat
           label="Cost this period"
           value={money(usage.estimated_cost)}
           sub={gpuSeconds(usage.total_gpu_seconds)}
         />
-      </ReadingRow>
+      </StatRow>
 
-      <div className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_282px]">
-        <div className="space-y-7">
-          <Section title="Workloads">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_296px]">
+        <div className="flex flex-col gap-5">
+          <Panel title="Workloads" flush>
             {workloads.length > 0 ? (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[680px] border-collapse">
+                <table className="w-full min-w-[700px] border-collapse">
                   <thead>
-                    <tr className="border-b border-line-strong">
-                      <th className="label pb-1.5 pr-3 text-left font-normal">Name</th>
-                      <th className="label w-[92px] pb-1.5 pr-3 text-left font-normal">Status</th>
-                      <th className="label w-[84px] pb-1.5 pr-3 text-right font-normal">GPUs</th>
-                      <th className="label w-[150px] pb-1.5 pr-3 text-left font-normal">Node</th>
-                      <th className="label w-[112px] pb-1.5 pr-3 text-left font-normal">Policy</th>
-                      <th className="label w-[52px] pb-1.5 pr-3 text-right font-normal">Age</th>
-                      <th className="w-[104px]" />
+                    <tr className="border-b border-hair">
+                      <th className="t-label py-2 pl-4 pr-3 text-left font-medium">Name</th>
+                      <th className="t-label w-[92px] py-2 pr-3 text-left font-medium">Status</th>
+                      <th className="t-label w-[88px] py-2 pr-3 text-right font-medium">GPUs</th>
+                      <th className="t-label w-[152px] py-2 pr-3 text-left font-medium">Node</th>
+                      <th className="t-label w-[112px] py-2 pr-3 text-left font-medium">Policy</th>
+                      <th className="t-label w-[56px] py-2 pr-3 text-right font-medium">Age</th>
+                      <th className="w-[108px] pr-4" />
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-line-soft">
+                  <tbody className="divide-y divide-hair">
                     {workloads.map((w) => (
                       <WorkloadRow key={w.id} workload={w} tenantId={id} explain={explain} />
                     ))}
@@ -161,41 +156,47 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
                 </table>
               </div>
             ) : (
-              <p className="py-6 text-center text-[12px] text-fg-dim">Nothing submitted yet.</p>
+              <p className="px-4 py-10 text-center text-[12.5px] text-ink-4">
+                Nothing submitted yet.
+              </p>
             )}
-          </Section>
+          </Panel>
 
-          <Section title="Endpoint replicas, last 15 minutes">
+          <Panel
+            title="Endpoint replicas"
+            aside={<span className="t-mono text-[10.5px] text-ink-4">15m</span>}
+          >
             <TimeSeries
               series={replicaSeries}
               labelKey="endpoint"
               step
+              height={140}
               emptyMessage="No endpoints scaling in this window."
             />
-          </Section>
+          </Panel>
         </div>
 
-        <div className="space-y-7">
-          <Section title="Submit work">
+        <div className="flex flex-col gap-5">
+          <Panel title="Submit work">
             <SubmitForms tenantId={id} />
-          </Section>
+          </Panel>
 
-          <Section title="Metered this period">
+          <Panel title="Metered this period" flush>
             {usage.workloads.length > 0 ? (
-              <ul className="divide-y divide-line-soft border-y border-line-soft">
-                {usage.workloads.slice(0, 10).map((w) => (
-                  <li key={w.workload_id} className="flex justify-between gap-2 py-1.5">
-                    <span className="num truncate text-[11.5px] text-fg-muted">
+              <ul className="divide-y divide-hair">
+                {usage.workloads.slice(0, 9).map((w) => (
+                  <li key={w.workload_id} className="flex justify-between gap-2 px-4 py-2">
+                    <span className="t-mono truncate text-[11.5px] text-ink-3">
                       {w.workload_id.slice(0, 8)} {w.kind}
                     </span>
-                    <span className="num shrink-0 text-[11.5px]">{money(w.cost)}</span>
+                    <span className="t-mono shrink-0 text-[11.5px] text-ink-2">{money(w.cost)}</span>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-[12px] text-fg-dim">Nothing metered this period.</p>
+              <p className="px-4 py-6 text-[12.5px] text-ink-4">Nothing metered this period.</p>
             )}
-          </Section>
+          </Panel>
         </div>
       </div>
     </div>
