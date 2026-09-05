@@ -6,9 +6,7 @@ deploy/, `alembic upgrade head` from control-plane/. Stop the compose `reconcile
 service while these run — the tests drive reconcile ticks themselves.
 """
 
-import time
 import uuid
-from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
 
@@ -18,9 +16,7 @@ from fastapi.testclient import TestClient
 from api.main import app
 from cluster import ClusterClient
 from config import settings
-from db import SessionLocal
-from redis_client import get_redis
-from scheduler.reconcile import reconcile_once
+from live_loops import drive_reconcile
 
 ADMIN_HEADERS = {"X-Kestrel-Admin-Token": settings.admin_token}
 
@@ -73,23 +69,6 @@ def _submit_job(client: TestClient, key: str, gpus: int) -> dict:
     return resp
 
 
-def _drive_reconcile(
-    cluster: ClusterClient, until: Callable[[], bool], timeout: float = 60.0
-) -> None:
-    redis = get_redis()
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        db = SessionLocal()
-        try:
-            reconcile_once(db, cluster, redis)
-        finally:
-            db.close()
-        if until():
-            return
-        time.sleep(1)
-    pytest.fail("reconcile condition not reached within timeout")
-
-
 def _job_status(client: TestClient, key: str, job_id: str) -> dict:
     resp = client.get(f"/jobs/{job_id}", headers={"X-Kestrel-Key": key})
     assert resp.status_code == 200, resp.text
@@ -123,7 +102,7 @@ def test_usage_accrues_and_billing_report_prices_it(
     key = _issue_key(client, tenant["id"])
     job = _submit_job(client, key, gpus=2).json()
 
-    _drive_reconcile(
+    drive_reconcile(
         cluster,
         until=lambda: _job_status(client, key, job["id"])["status"]
         in {"running", "succeeded"},
@@ -133,7 +112,7 @@ def test_usage_accrues_and_billing_report_prices_it(
     assert any(w["workload_id"] == job["id"] for w in usage["workloads"])
 
     # Let it finish (KWOK completes fake pods quickly), then check exact math.
-    _drive_reconcile(
+    drive_reconcile(
         cluster,
         until=lambda: _job_status(client, key, job["id"])["status"] == "succeeded",
     )
@@ -165,7 +144,7 @@ def test_budget_exhaustion_blocks_new_submissions(
 
     # Run the whole quota's worth of GPUs so even a short KWOK-completed run
     # burns through the 1 GPU-second budget.
-    _drive_reconcile(
+    drive_reconcile(
         cluster,
         until=lambda: _job_status(client, key, job["id"])["status"] == "succeeded",
     )

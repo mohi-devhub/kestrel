@@ -6,9 +6,7 @@ service while these run — the tests drive reconcile ticks themselves so the
 scenarios stay deterministic.
 """
 
-import time
 import uuid
-from collections.abc import Callable
 from datetime import UTC, datetime
 
 import pytest
@@ -21,8 +19,7 @@ from cluster.naming import tenant_namespace
 from config import settings
 from db import SessionLocal
 from db.models import AutoscaleEvent, UsageEvent, Workload
-from redis_client import get_redis
-from scheduler.reconcile import reconcile_once
+from live_loops import drive_reconcile
 
 ADMIN_HEADERS = {"X-Kestrel-Admin-Token": settings.admin_token}
 
@@ -76,25 +73,6 @@ def _submit_job(client: TestClient, key: str, gpus: int, seconds: int = 300) -> 
     return resp.json()
 
 
-def _drive_reconcile(
-    cluster: ClusterClient, until: Callable[[], bool], timeout: float = 60.0
-) -> None:
-    """Tick the reconcile loop (like the reconciler process would) until a
-    condition holds or the timeout expires."""
-    redis = get_redis()
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        db = SessionLocal()
-        try:
-            reconcile_once(db, cluster, redis)
-        finally:
-            db.close()
-        if until():
-            return
-        time.sleep(1)
-    pytest.fail("reconcile condition not reached within timeout")
-
-
 def _statuses(client: TestClient, key: str) -> dict[str, str]:
     resp = client.get("/jobs", headers={"X-Kestrel-Key": key})
     assert resp.status_code == 200
@@ -122,13 +100,13 @@ def test_oversubscription_queues_via_kueue_then_drains(
     ids = [j["id"] for j in jobs]
 
     try:
-        _drive_reconcile(
+        drive_reconcile(
             cluster,
             until=lambda: sorted(_statuses(client, key)[i] for i in ids)
             == ["queued", "running", "running"],
         )
         # The third job is Kueue-queued (not admitted), not merely unplaced.
-        _drive_reconcile(
+        drive_reconcile(
             cluster,
             until=lambda: all(
                 s in {"succeeded", "running"} for s in _statuses(client, key).values()
@@ -137,7 +115,7 @@ def test_oversubscription_queues_via_kueue_then_drains(
             timeout=120.0,
         )
         # Eventually everything drains.
-        _drive_reconcile(
+        drive_reconcile(
             cluster,
             until=lambda: set(_statuses(client, key).values()) == {"succeeded"},
             timeout=120.0,
@@ -180,7 +158,7 @@ def test_policy_swap_changes_placement(client: TestClient, cluster: ClusterClien
         assert first_fit_pick != bin_packing_pick
 
         job_ff = _submit_job(client, key, gpus=1)
-        _drive_reconcile(cluster, until=lambda: _statuses(client, key)[job_ff["id"]] == "running")
+        drive_reconcile(cluster, until=lambda: _statuses(client, key)[job_ff["id"]] == "running")
         placed_ff = client.get(f"/jobs/{job_ff['id']}", headers={"X-Kestrel-Key": key}).json()
         assert placed_ff["node_name"] == first_fit_pick
         assert placed_ff["placement_policy"] == "first_fit"
@@ -193,7 +171,7 @@ def test_policy_swap_changes_placement(client: TestClient, cluster: ClusterClien
         bin_packing_pick = min(fitting, key=lambda n: (usage[n]["gpu_free"], n))
 
         job_bp = _submit_job(client, key, gpus=1)
-        _drive_reconcile(cluster, until=lambda: _statuses(client, key)[job_bp["id"]] == "running")
+        drive_reconcile(cluster, until=lambda: _statuses(client, key)[job_bp["id"]] == "running")
         placed_bp = client.get(f"/jobs/{job_bp['id']}", headers={"X-Kestrel-Key": key}).json()
         assert placed_bp["node_name"] == bin_packing_pick
         assert placed_bp["placement_policy"] == "bin_packing"
@@ -220,7 +198,7 @@ def test_multi_gpu_job_lands_on_a_single_node(
     job = _submit_job(client, key, gpus=4)
 
     try:
-        _drive_reconcile(cluster, until=lambda: _statuses(client, key)[job["id"]] == "running")
+        drive_reconcile(cluster, until=lambda: _statuses(client, key)[job["id"]] == "running")
         placed = client.get(f"/jobs/{job['id']}", headers={"X-Kestrel-Key": key}).json()
         assert placed["node_name"] is not None
         usage = _node_usage(client)

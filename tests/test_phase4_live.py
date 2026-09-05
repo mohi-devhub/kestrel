@@ -13,7 +13,6 @@ future `now` is genuinely indistinguishable from having waited.
 
 import time
 import uuid
-from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
@@ -21,13 +20,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.main import app
-from autoscale.loop import autoscale_once
 from autoscale.policy import REASON_SCALE_FROM_ZERO, REASON_SCALE_TO_ZERO
 from cluster import ClusterClient
 from config import settings
-from db import SessionLocal
-from redis_client import get_redis
-from scheduler.reconcile import reconcile_once
+from live_loops import drive_reconcile, tick_autoscaler
 
 ADMIN_HEADERS = {"X-Kestrel-Admin-Token": settings.admin_token}
 WINDOW = settings.autoscale_window_seconds
@@ -80,31 +76,6 @@ def _provision_endpoint(client: TestClient, key: str, **overrides: object) -> di
     return resp.json()
 
 
-def _drive_reconcile(
-    cluster: ClusterClient, until: Callable[[], bool], timeout: float = 60.0
-) -> None:
-    redis = get_redis()
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        db = SessionLocal()
-        try:
-            reconcile_once(db, cluster, redis)
-        finally:
-            db.close()
-        if until():
-            return
-        time.sleep(1)
-    pytest.fail("reconcile condition not reached within timeout")
-
-
-def _tick_autoscaler(cluster: ClusterClient, now: datetime | None = None) -> dict[str, int]:
-    db = SessionLocal()
-    try:
-        return autoscale_once(db, cluster, get_redis(), now=now)
-    finally:
-        db.close()
-
-
 def _endpoint(client: TestClient, key: str, endpoint_id: str) -> dict:
     resp = client.get(f"/endpoints/{endpoint_id}", headers={"X-Kestrel-Key": key})
     assert resp.status_code == 200, resp.text
@@ -126,7 +97,7 @@ def test_endpoint_wakes_under_load_and_sleeps_when_it_stops(
 
     try:
         # Placement creates the real Deployment, cold at zero replicas.
-        _drive_reconcile(
+        drive_reconcile(
             cluster, until=lambda: _endpoint(client, key, endpoint["id"])["status"] == "running"
         )
         placed = _endpoint(client, key, endpoint["id"])
@@ -145,7 +116,7 @@ def test_endpoint_wakes_under_load_and_sleeps_when_it_stops(
         assert resp.status_code == 200, resp.text
         assert resp.json()["desired_replicas"] == 3
 
-        assert _tick_autoscaler(cluster) == {"scaled": 1}
+        assert tick_autoscaler(cluster) == {"scaled": 1}
         woken = _endpoint(client, key, endpoint["id"])
         assert woken["replicas"] == 3
         assert _k8s_replicas(cluster, placed["namespace"], placed["k8s_name"]) == 3
@@ -158,7 +129,7 @@ def test_endpoint_wakes_under_load_and_sleeps_when_it_stops(
         later = datetime.now(UTC) + timedelta(
             seconds=settings.scale_to_zero_after_seconds + 10
         )
-        assert _tick_autoscaler(cluster, now=later) == {"scaled": 1}
+        assert tick_autoscaler(cluster, now=later) == {"scaled": 1}
         asleep = _endpoint(client, key, endpoint["id"])
         assert asleep["replicas"] == 0
         assert _k8s_replicas(cluster, placed["namespace"], placed["k8s_name"]) == 0
@@ -191,7 +162,7 @@ def test_replica_growth_shows_up_in_cluster_gpu_accounting(
     headers = {"X-Kestrel-Key": key}
 
     try:
-        _drive_reconcile(
+        drive_reconcile(
             cluster, until=lambda: _endpoint(client, key, endpoint["id"])["status"] == "running"
         )
         placed = _endpoint(client, key, endpoint["id"])
@@ -207,7 +178,7 @@ def test_replica_growth_shows_up_in_cluster_gpu_accounting(
             json={"requests": int(20 * WINDOW)},
             headers=headers,
         )
-        _tick_autoscaler(cluster)
+        tick_autoscaler(cluster)
 
         assert _endpoint(client, key, endpoint["id"])["replicas"] == 4
         # Scaling is a real capacity change, not just a number on the endpoint:
