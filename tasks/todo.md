@@ -112,7 +112,7 @@ events (quota rejections) use a plain in-process counter.
 - [ ] Model served as demo endpoint (model-agnostic interface)
 - [ ] `scripts/seed.py`
 - [ ] `scripts/demo.sh`
-- [ ] `README.md`
+- [x] `README.md`
 - [ ] Full end-to-end demo run
 - [ ] CHECKPOINT shown to user
 
