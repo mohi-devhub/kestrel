@@ -1,0 +1,5 @@
+# Everything outside control-plane/ (tests, scripts, demo) had no ruff config of
+# its own and silently fell back to the 88-column default, while the control
+# plane is configured for 100. One convention across the repo instead.
+line-length = 100
+target-version = "py311"

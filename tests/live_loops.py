@@ -48,9 +48,7 @@ def drive_reconcile(
     pytest.fail("reconcile condition not reached within timeout")
 
 
-def tick_autoscaler(
-    cluster: ClusterClient, now: datetime | None = None
-) -> dict[str, int]:
+def tick_autoscaler(cluster: ClusterClient, now: datetime | None = None) -> dict[str, int]:
     """One autoscaler pass, holding the control lock as the real loop does.
 
     Unlike reconcile, a skipped tick here would silently return "nothing
