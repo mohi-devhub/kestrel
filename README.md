@@ -332,11 +332,3 @@ tests/
 Interfaces are deliberately narrow and pure where possible: `PlacementPolicy`, `MeteringStore`,
 `QuotaEnforcer`, `ClusterPort` and `Autoscaler` are each independently testable, which is why 74 of
 the tests need no infrastructure at all.
-
-## Status
-
-Phases 0 through 6 are complete: cluster and control plane, multi-tenancy, placement policies,
-metering and billing, autoscaling, runway-aware scheduling with decision explainability, and
-observability with the console. Remaining: a real CPU-model demo endpoint (which needs heterogeneous
-placement, since KWOK nodes cannot execute containers), seed and demo scripts, and an end-to-end
-demo run.
