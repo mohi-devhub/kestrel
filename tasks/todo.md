@@ -118,12 +118,12 @@ a real model endpoint possible, and is what real clusters do with labels and aff
 - [x] `ClusterState.eligible(gpus_needed)`: GPU work to nodes with GPU capacity, CPU-only work to nodes without. Pool is derivable from capacity, so no new state.
 - [x] All four policies route through `eligible()` rather than scanning every node
 - [x] `_build_cluster_state` admits both pools instead of filtering to GPU nodes
-- [ ] Real `- role: worker` in the kind config, so there is a node that can actually execute a container
+- [x] Real `- role: worker` in the kind config, so there is a node that can actually execute a container
 - [x] Tests: CPU-only lands in the CPU pool, GPU work never lands there, control plane excluded
 
 ### 7b — Real model endpoint
-- [ ] Small real CPU model chosen + verified runnable
-- [ ] Model served as demo endpoint (model-agnostic interface)
+- [x] Small real CPU model chosen + verified runnable
+- [x] Model served as demo endpoint (model-agnostic interface)
 - [ ] `scripts/seed.py`
 - [ ] `scripts/demo.sh`
 - [x] `README.md`
