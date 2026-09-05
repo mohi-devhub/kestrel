@@ -12,12 +12,23 @@ import { ago } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
+/** A console should show what it can reach, not a stack trace, when one source is
+ *  down. Each read degrades on its own so an unreachable Kubernetes API costs the
+ *  GPU map and nothing else. */
+async function safe<T>(p: Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await p;
+  } catch {
+    return fallback;
+  }
+}
+
 export default async function ClusterPage() {
   const [allNodes, workloads, policy, tenants, promUp] = await Promise.all([
-    clusterNodes(),
-    clusterWorkloads(),
-    activePolicy(),
-    listTenants(),
+    safe(clusterNodes(), []),
+    safe(clusterWorkloads(), []),
+    safe(activePolicy(), { name: "unknown" }),
+    safe(listTenants(), []),
     isPrometheusUp(),
   ]);
 
