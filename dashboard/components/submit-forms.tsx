@@ -22,7 +22,7 @@ export function SubmitForms({ tenantId }: { tenantId: string }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex gap-1 rounded-sm border border-hair bg-s2 p-1" role="tablist">
+      <div className="flex gap-1 rounded-full bg-sunk p-1" role="tablist">
         {(["job", "endpoint"] as Kind[]).map((k) => (
           <button
             key={k}
@@ -34,8 +34,8 @@ export function SubmitForms({ tenantId }: { tenantId: string }) {
               setResult(null);
             }}
             className={cn(
-              "t-mono flex-1 rounded-[4px] py-1 text-[12px] capitalize",
-              kind === k ? "bg-s1 text-ink" : "text-ink-4 hover:text-ink-2",
+              "flex-1 rounded-full py-1.5 text-[12.5px] font-medium capitalize",
+              kind === k ? "bg-card text-ink shadow-card" : "text-ink-3 hover:text-ink",
             )}
           >
             {k}
@@ -64,7 +64,7 @@ export function SubmitForms({ tenantId }: { tenantId: string }) {
               <Field name="min_replicas" label="Min replicas" type="number" defaultValue="1" min={0} />
               <Field name="max_replicas" label="Max replicas" type="number" defaultValue="3" min={1} />
             </div>
-            <p className="text-[11px] leading-snug text-ink-4">
+            <p className="text-[11.5px] leading-snug text-ink-3">
               Min 0 opts into scale-to-zero: it starts cold and wakes on first reported load.
             </p>
           </>
@@ -73,7 +73,7 @@ export function SubmitForms({ tenantId }: { tenantId: string }) {
         <button
           type="submit"
           disabled={pending}
-          className="w-full rounded-sm bg-accent px-3 py-2 text-[12.5px] font-medium text-accent-ink hover:brightness-110 disabled:opacity-60"
+          className="w-full rounded-sm bg-accent px-3 py-2.5 text-[13px] font-semibold text-accent-ink shadow-card hover:brightness-110 disabled:opacity-60"
         >
           {pending ? "Submitting" : kind === "job" ? "Submit job" : "Provision endpoint"}
         </button>
@@ -82,8 +82,8 @@ export function SubmitForms({ tenantId }: { tenantId: string }) {
       {result && (
         <p
           className={cn(
-            "rounded-sm px-2.5 py-1.5 text-[11.5px]",
-            result.ok ? "bg-ok-weak text-ok" : "bg-crit-weak text-crit",
+            "rounded-sm px-3 py-2 text-[12px] font-medium",
+            result.ok ? "bg-ok-soft text-ok" : "bg-crit-soft text-crit",
           )}
         >
           {result.message}
@@ -108,7 +108,7 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <label htmlFor={name} className="t-label block">
+      <label htmlFor={name} className="t-label block text-[11.5px] font-medium">
         {label}
       </label>
       <input
@@ -117,7 +117,7 @@ function Field({
         type={type}
         defaultValue={defaultValue}
         min={min}
-        className="t-mono w-full rounded-sm border border-hair-2 bg-s2 px-2.5 py-1.5 text-[12px] text-ink transition-colors placeholder:text-ink-4 hover:border-hair-3 focus-visible:border-accent"
+        className="t-mono w-full rounded-sm border border-line-2 bg-card px-3 py-2 text-[12.5px] text-ink transition-colors placeholder:text-ink-4 hover:border-ink-4 focus-visible:border-accent"
       />
     </div>
   );

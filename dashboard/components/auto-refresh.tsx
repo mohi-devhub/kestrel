@@ -6,11 +6,10 @@ import { useRouter } from "next/navigation";
 import { cn } from "cn";
 
 /**
- * Re-runs the server components on an interval.
- *
- * There is no client-side data layer: every panel is a server component reading
- * the control plane directly, so refreshing the route IS the live-update
- * mechanism and every number keeps one source of truth. Pauses on a hidden tab.
+ * Re-runs the server components on an interval. There is no client data layer:
+ * every panel is a server component reading the control plane directly, so
+ * refreshing the route IS the live-update mechanism and every number keeps one
+ * source of truth. Pauses on a hidden tab.
  */
 export function AutoRefresh({ seconds = 5 }: { seconds?: number }) {
   const router = useRouter();
@@ -29,7 +28,7 @@ export function AutoRefresh({ seconds = 5 }: { seconds?: number }) {
       type="button"
       onClick={() => setLive((v) => !v)}
       aria-pressed={live}
-      className="t-mono flex items-center gap-1.5 rounded-sm border border-hair bg-s2 px-2 py-1 text-[11px] text-ink-3 hover:border-hair-2 hover:text-ink"
+      className="flex items-center gap-2 rounded-full border border-line bg-card px-3 py-1.5 text-[12.5px] font-medium text-ink-2 shadow-card hover:border-line-2 hover:text-ink"
     >
       <span
         aria-hidden
@@ -38,7 +37,7 @@ export function AutoRefresh({ seconds = 5 }: { seconds?: number }) {
           live ? "bg-ok motion-safe:animate-pulse" : "bg-ink-4",
         )}
       />
-      {live ? `live ${seconds}s` : "paused"}
+      {live ? `Live · ${seconds}s` : "Paused"}
     </button>
   );
 }

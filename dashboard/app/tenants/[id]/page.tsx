@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowLeft, Activity, PlusCircle, Receipt, Table2 } from "lucide-react";
 
 import { AutoRefresh } from "@/components/auto-refresh";
-import { Meter, PageHead, Panel, Stat, StatRow } from "@/components/shell";
+import { Bar, Card, Stat } from "@/components/shell";
 import { SubmitForms } from "@/components/submit-forms";
 import { TimeSeries } from "@/components/timeseries";
 import { WorkloadRow } from "@/components/workload-row";
@@ -15,7 +16,7 @@ import {
   tenantUsage,
 } from "@/lib/kestrel";
 import { queryRange } from "@/lib/prom";
-import { RISK_TIER_LABEL, gpuSeconds, money, riskTone, runway } from "@/lib/format";
+import { RISK_TIER_LABEL, gpuSeconds, money, runway } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,7 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
   }
 
   const budgetUsed = Number(usage.total_gpu_seconds);
+  const runwayTone = (["ok", "ink", "warn", "crit"] as const)[tenantRunway?.risk_tier ?? 0];
 
   async function explain(workloadId: string): Promise<Explain | { error: string }> {
     "use server";
@@ -63,61 +65,49 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      <PageHead
-        back={
-          <Link href="/tenants" className="mb-1 inline-block text-[11.5px] text-ink-4 hover:text-ink">
-            Tenants
-          </Link>
-        }
-        title={<span className="t-mono text-[20px]">{tenant.slug}</span>}
-        sub={`${tenant.name} · $${tenant.price_per_gpu_hour} per GPU-hour`}
-        aside={<AutoRefresh seconds={5} />}
-      />
+    <div>
+      <div className="relative mb-8 text-center">
+        <Link
+          href="/tenants"
+          className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-line bg-card px-3 py-1 text-[12.5px] font-medium text-ink-2 shadow-card hover:border-line-2 hover:text-ink"
+        >
+          <ArrowLeft size={13} strokeWidth={2} />
+          Tenants
+        </Link>
+        <h1 className="t-h1 text-[38px] text-ink">{tenant.name}</h1>
+        <p className="mt-2 text-[14.5px] text-ink-3">
+          <span className="t-mono text-ink-2">{tenant.slug}</span> · $
+          {tenant.price_per_gpu_hour} per GPU-hour
+        </p>
+        <div className="mt-4 flex justify-center sm:absolute sm:right-0 sm:top-1 sm:mt-0">
+          <AutoRefresh seconds={5} />
+        </div>
+      </div>
 
-      <StatRow>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat
           label="Concurrent GPUs"
-          value={
-            <>
-              {held}
-              <span className="text-ink-4">/{tenant.max_gpus}</span>
-            </>
-          }
-          sub={<Meter used={held} total={tenant.max_gpus} className="mt-1 max-w-[130px]" />}
-          tone={held > 0 ? "accent" : undefined}
+          value={held}
+          denom={tenant.max_gpus}
+          tone={held > 0 ? "accent" : "ink"}
+          sub={<Bar used={held} total={tenant.max_gpus} className="mt-1.5" />}
         />
         <Stat
-          label="Budget"
-          value={
-            tenant.gpu_second_budget === null ? (
-              <span className="text-ink-3">none</span>
-            ) : (
-              <>
-                {budgetUsed.toFixed(0)}
-                <span className="text-ink-4">/{tenant.gpu_second_budget}</span>
-              </>
-            )
-          }
+          label="Budget used"
+          value={tenant.gpu_second_budget === null ? "None" : budgetUsed.toFixed(0)}
+          denom={tenant.gpu_second_budget ?? undefined}
           sub={
             tenant.gpu_second_budget === null ? (
               "no cap configured"
             ) : (
-              <Meter used={budgetUsed} total={tenant.gpu_second_budget} className="mt-1 max-w-[130px]" />
+              <Bar used={budgetUsed} total={tenant.gpu_second_budget} className="mt-1.5" />
             )
           }
         />
         <Stat
           label="Runway"
-          value={
-            tenantRunway ? (
-              <span className={riskTone(tenantRunway.risk_tier)}>
-                {runway(tenantRunway.runway_seconds)}
-              </span>
-            ) : (
-              <span className="text-ink-4">-</span>
-            )
-          }
+          value={tenantRunway ? runway(tenantRunway.runway_seconds) : "-"}
+          tone={tenantRunway ? runwayTone : "ink"}
           sub={
             tenantRunway
               ? `${RISK_TIER_LABEL[tenantRunway.risk_tier]}, burning ${tenantRunway.burn_rate_gpus} GPU/s`
@@ -129,26 +119,26 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
           value={money(usage.estimated_cost)}
           sub={gpuSeconds(usage.total_gpu_seconds)}
         />
-      </StatRow>
+      </div>
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_296px]">
-        <div className="flex flex-col gap-5">
-          <Panel title="Workloads" flush>
+      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_330px]">
+        <div className="flex flex-col gap-4">
+          <Card title="Workloads" icon={Table2} flush>
             {workloads.length > 0 ? (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[700px] border-collapse">
+                <table className="w-full min-w-[860px] border-collapse">
                   <thead>
-                    <tr className="border-b border-hair">
-                      <th className="t-label py-2 pl-4 pr-3 text-left font-medium">Name</th>
-                      <th className="t-label w-[92px] py-2 pr-3 text-left font-medium">Status</th>
-                      <th className="t-label w-[88px] py-2 pr-3 text-right font-medium">GPUs</th>
-                      <th className="t-label w-[152px] py-2 pr-3 text-left font-medium">Node</th>
-                      <th className="t-label w-[112px] py-2 pr-3 text-left font-medium">Policy</th>
-                      <th className="t-label w-[56px] py-2 pr-3 text-right font-medium">Age</th>
-                      <th className="w-[108px] pr-4" />
+                    <tr className="border-y border-line bg-sunk/60">
+                      <Th className="pl-5 text-left">Name</Th>
+                      <Th className="w-[110px] text-left">Status</Th>
+                      <Th className="w-[92px] text-right">GPUs</Th>
+                      <Th className="w-[160px] text-left">Node</Th>
+                      <Th className="w-[116px] text-left">Policy</Th>
+                      <Th className="w-[60px] text-right">Age</Th>
+                      <th className="w-[116px] pr-5" />
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-hair">
+                  <tbody className="divide-y divide-line">
                     {workloads.map((w) => (
                       <WorkloadRow key={w.id} workload={w} tenantId={id} explain={explain} />
                     ))}
@@ -156,49 +146,60 @@ export default async function TenantPage({ params }: { params: Promise<{ id: str
                 </table>
               </div>
             ) : (
-              <p className="px-4 py-10 text-center text-[12.5px] text-ink-4">
+              <p className="px-5 pb-6 text-center text-[13px] text-ink-3">
                 Nothing submitted yet.
               </p>
             )}
-          </Panel>
+          </Card>
 
-          <Panel
+          <Card
             title="Endpoint replicas"
-            aside={<span className="t-mono text-[10.5px] text-ink-4">15m</span>}
+            icon={Activity}
+            aside={<span className="text-[11.5px] text-ink-4">15m</span>}
           >
             <TimeSeries
               series={replicaSeries}
               labelKey="endpoint"
               step
-              height={140}
+              height={150}
               emptyMessage="No endpoints scaling in this window."
             />
-          </Panel>
+          </Card>
         </div>
 
-        <div className="flex flex-col gap-5">
-          <Panel title="Submit work">
+        <div className="flex flex-col gap-4">
+          <Card title="Submit work" icon={PlusCircle}>
             <SubmitForms tenantId={id} />
-          </Panel>
+          </Card>
 
-          <Panel title="Metered this period" flush>
+          <Card title="Metered this period" icon={Receipt} flush>
             {usage.workloads.length > 0 ? (
-              <ul className="divide-y divide-hair">
-                {usage.workloads.slice(0, 9).map((w) => (
-                  <li key={w.workload_id} className="flex justify-between gap-2 px-4 py-2">
-                    <span className="t-mono truncate text-[11.5px] text-ink-3">
+              <ul className="divide-y divide-line">
+                {usage.workloads.slice(0, 8).map((w) => (
+                  <li key={w.workload_id} className="flex justify-between gap-2 px-5 py-2.5">
+                    <span className="t-mono truncate text-[12px] text-ink-3">
                       {w.workload_id.slice(0, 8)} {w.kind}
                     </span>
-                    <span className="t-mono shrink-0 text-[11.5px] text-ink-2">{money(w.cost)}</span>
+                    <span className="shrink-0 text-[12.5px] font-medium text-ink">
+                      {money(w.cost)}
+                    </span>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="px-4 py-6 text-[12.5px] text-ink-4">Nothing metered this period.</p>
+              <p className="px-5 pb-5 text-[13px] text-ink-3">Nothing metered this period.</p>
             )}
-          </Panel>
+          </Card>
         </div>
       </div>
     </div>
+  );
+}
+
+function Th({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <th className={`t-label py-2.5 pr-3 text-[11px] font-medium uppercase tracking-wide ${className}`}>
+      {children}
+    </th>
   );
 }

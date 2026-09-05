@@ -1,18 +1,27 @@
 import type { Metadata } from "next";
-import { Instrument_Sans, JetBrains_Mono } from "next/font/google";
+import { Bricolage_Grotesque, Inter_Tight, JetBrains_Mono } from "next/font/google";
 
 import "./globals.css";
-import { Sidebar } from "@/components/sidebar";
+import { NavBar } from "@/components/navbar";
 
-const sans = Instrument_Sans({
-  variable: "--font-sans-face",
+// Display face carries the personality: Bricolage is a contemporary grotesque
+// with real character in its bold weights, which is what the big readings need.
+const display = Bricolage_Grotesque({
+  variable: "--font-display",
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
+});
+// UI face stays quiet so it can sit under the display face without competing.
+const ui = Inter_Tight({
+  variable: "--font-ui",
   subsets: ["latin"],
   weight: ["400", "500", "600"],
 });
+// Mono is reserved for identifiers only: node names, workload names, policies.
 const mono = JetBrains_Mono({
   variable: "--font-mono-face",
   subsets: ["latin"],
-  weight: ["400", "500", "700"],
+  weight: ["400", "500"],
 });
 
 export const metadata: Metadata = {
@@ -22,17 +31,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`${sans.variable} ${mono.variable}`}>
-        {/* Sidebar rather than a top bar: it anchors the left edge, gives the
-            content a bounded column instead of letting it float across a wide
-            viewport, and is where anyone who uses a console expects nav to be. */}
-        <div className="flex min-h-[100dvh]">
-          <Sidebar />
-          <div className="min-w-0 flex-1">
-            <div className="mx-auto max-w-[1240px] px-6 py-6 lg:px-8 lg:py-8">{children}</div>
-          </div>
-        </div>
+    <html lang="en">
+      <body className={`${display.variable} ${ui.variable} ${mono.variable}`}>
+        <NavBar />
+        <main className="mx-auto max-w-[1180px] px-6 pb-20 pt-28">{children}</main>
       </body>
     </html>
   );

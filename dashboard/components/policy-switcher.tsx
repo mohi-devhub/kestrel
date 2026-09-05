@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Check } from "lucide-react";
 
 import { setPolicyAction } from "@/app/actions";
 import { cn } from "cn";
@@ -37,7 +38,7 @@ export function PolicySwitcher({ active }: { active: string }) {
   }
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1.5">
       {POLICIES.map((p) => {
         const isActive = p.name === optimistic;
         return (
@@ -48,25 +49,37 @@ export function PolicySwitcher({ active }: { active: string }) {
             onClick={() => choose(p.name)}
             aria-pressed={isActive}
             className={cn(
-              "rounded-sm border px-3 py-2 text-left disabled:opacity-60",
+              "flex items-center gap-3 rounded-sm border px-3 py-2.5 text-left disabled:opacity-60",
               isActive
-                ? "border-accent-line bg-accent-weak"
-                : "border-transparent hover:bg-s2",
+                ? "border-accent-line bg-accent-soft"
+                : "border-line bg-card hover:border-line-2 hover:bg-sunk",
             )}
           >
             <span
               className={cn(
-                "t-mono block text-[12px] leading-tight",
-                isActive ? "text-accent" : "text-ink-2",
+                "grid size-5 shrink-0 place-content-center rounded-full border",
+                isActive ? "border-accent bg-accent text-white" : "border-line-2 bg-card",
               )}
             >
-              {p.name}
+              {isActive && <Check size={12} strokeWidth={3} />}
             </span>
-            <span className="mt-0.5 block text-[11px] leading-tight text-ink-4">{p.blurb}</span>
+            <span className="min-w-0">
+              <span
+                className={cn(
+                  "t-mono block text-[12.5px] leading-tight",
+                  isActive ? "text-accent" : "text-ink",
+                )}
+              >
+                {p.name}
+              </span>
+              <span className="mt-0.5 block text-[11.5px] leading-tight text-ink-3">
+                {p.blurb}
+              </span>
+            </span>
           </button>
         );
       })}
-      {message && <p className="px-3 pt-1 text-[11px] text-crit">{message}</p>}
+      {message && <p className="px-1 pt-1 text-[12px] text-crit">{message}</p>}
     </div>
   );
 }

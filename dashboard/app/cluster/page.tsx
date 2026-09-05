@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { Activity, Cpu, Layers, ListChecks, SlidersHorizontal } from "lucide-react";
 
 import { AutoRefresh } from "@/components/auto-refresh";
 import { GpuMap } from "@/components/gpu-map";
-import { PageHead, Panel, Stat, StatRow, Status } from "@/components/shell";
+import { Card, PageHead, Stat, Status } from "@/components/shell";
 import { PolicySwitcher } from "@/components/policy-switcher";
 import { TimeSeries } from "@/components/timeseries";
 import { activePolicy, clusterNodes, clusterWorkloads, listTenants } from "@/lib/kestrel";
@@ -36,107 +37,102 @@ export default async function ClusterPage() {
   const gpuUsed = nodes.reduce((n, x) => n + x.gpu_used, 0);
   const queued = workloads.filter((w) => w.status === "queued" || w.status === "admitted");
   const running = workloads.filter((w) => w.status === "running");
-  const recent = [...workloads].sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 7);
+  const recent = [...workloads].sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 6);
 
   return (
-    <div className="flex flex-col gap-5">
+    <div>
       <PageHead
         title="Cluster"
-        sub="Simulated GPU fleet, from the control plane's own accounting."
+        sub="Simulated GPU fleet, live from the control plane's own accounting."
         aside={<AutoRefresh seconds={5} />}
       />
 
-      <StatRow>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat
           label="GPUs held"
-          value={
-            <>
-              {gpuUsed}
-              <span className="text-ink-4">/{gpuTotal}</span>
-            </>
-          }
-          sub={`${nodes.length} nodes, ${gpuTotal - gpuUsed} free`}
-          tone={gpuUsed > 0 ? "accent" : undefined}
+          value={gpuUsed}
+          denom={gpuTotal}
+          tone={gpuUsed > 0 ? "accent" : "ink"}
+          sub={`${gpuTotal - gpuUsed} free across ${nodes.length} nodes`}
         />
-        <Stat label="Running" value={running.length} sub="workloads on nodes" tone="ok" />
+        <Stat
+          label="Running"
+          value={running.length}
+          tone={running.length > 0 ? "ok" : "ink"}
+          sub="workloads placed on nodes"
+        />
         <Stat
           label="Queued"
           value={queued.length}
-          sub="awaiting capacity"
-          tone={queued.length > 0 ? "queue" : undefined}
+          tone={queued.length > 0 ? "warn" : "ink"}
+          sub="admitted, awaiting capacity"
         />
         <Stat label="Tenants" value={tenants.length} sub="with quota on this cluster" />
-      </StatRow>
+      </div>
 
-      {/* Charts sit directly under the stats rather than at the page foot. The
-          previous layout put a short map beside a tall column and left a third
-          of the viewport empty below it. */}
-      <div className="grid gap-5 xl:grid-cols-3">
-        <Panel
+      <div className="mt-4 grid gap-4 xl:grid-cols-3">
+        <Card
           title="GPUs in use"
+          icon={Cpu}
           aside={
-            promUp ? (
-              <span className="t-mono text-[10.5px] text-ink-4">15m</span>
-            ) : (
-              <span className="text-[10.5px] text-ink-4">Prometheus down</span>
-            )
+            <span className="text-[11.5px] text-ink-4">{promUp ? "15m" : "no Prometheus"}</span>
           }
         >
-          <TimeSeries series={nodeSeries} labelKey="__total" step height={132} unit=" GPU" />
-        </Panel>
-        <Panel title="Endpoint replicas">
+          <TimeSeries series={nodeSeries} labelKey="__total" step height={130} unit=" GPU" />
+        </Card>
+        <Card title="Endpoint replicas" icon={Activity}>
           <TimeSeries
             series={replicaSeries}
             labelKey="endpoint"
             step
-            height={132}
+            height={130}
             emptyMessage="No endpoints scaling in this window."
           />
-        </Panel>
-        <Panel title="Queue depth">
+        </Card>
+        <Card title="Queue depth" icon={Layers}>
           <TimeSeries
             series={queueSeries}
             labelKey="tenant"
             step
-            height={132}
+            height={130}
             emptyMessage="Nothing has queued in this window."
           />
-        </Panel>
+        </Card>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <Panel title="GPU map" flush>
+      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <Card title="GPU map" icon={Cpu} flush>
           <GpuMap nodes={nodes} workloads={workloads} />
-        </Panel>
+        </Card>
 
-        <div className="flex flex-col gap-5">
-          <Panel title="Placement policy" bodyClassName="p-2">
+        <div className="flex flex-col gap-4">
+          <Card title="Placement policy" icon={SlidersHorizontal}>
             <PolicySwitcher active={policy.name} />
-          </Panel>
+          </Card>
 
-          <Panel title="Recent" flush>
+          <Card title="Recent" icon={ListChecks} flush>
             {recent.length > 0 ? (
-              <ul className="divide-y divide-hair">
+              <ul className="divide-y divide-line">
                 {recent.map((w) => (
-                  <li key={w.id} className="flex items-center justify-between gap-2 px-4 py-2">
-                    <span className="t-mono truncate text-[11.5px] text-ink-2">{w.k8s_name}</span>
-                    <span className="flex shrink-0 items-center gap-2">
-                      <span className="t-mono text-[11px] text-ink-4">{ago(w.created_at)}</span>
+                  <li key={w.id} className="flex items-center justify-between gap-2 px-5 py-2.5">
+                    <span className="t-mono truncate text-[12px] text-ink-2">{w.k8s_name}</span>
+                    <span className="flex shrink-0 items-center gap-2.5">
+                      <span className="text-[11.5px] text-ink-4">{ago(w.created_at)}</span>
                       <Status status={w.status} />
                     </span>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="px-4 py-6 text-[12.5px] text-ink-4">
+              <p className="px-5 pb-5 text-[13px] text-ink-3">
                 Nothing submitted yet. Pick a tenant on{" "}
-                <Link href="/tenants" className="text-accent underline underline-offset-2">
+                <Link href="/tenants" className="font-medium text-accent hover:underline">
                   Tenants
                 </Link>
                 .
               </p>
             )}
-          </Panel>
+          </Card>
         </div>
       </div>
     </div>

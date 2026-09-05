@@ -41,35 +41,35 @@ export function WorkloadRow({
 
   return (
     <>
-      <tr className={cn("transition-colors hover:bg-s2", open && "bg-s2")}>
-        <td className="t-mono py-2 pl-4 pr-3 text-[12px] text-ink">{workload.k8s_name}</td>
-        <td className="py-2 pr-3">
+      <tr className={cn("transition-colors hover:bg-sunk/60", open && "bg-sunk/60")}>
+        <td className="t-mono whitespace-nowrap py-3 pl-5 pr-3 text-[12.5px] text-ink">{workload.k8s_name}</td>
+        <td className="py-3 pr-3">
           <Status status={workload.status} />
         </td>
-        <td className="t-mono py-2 pr-3 text-right text-[12px] text-ink-2">
+        <td className="py-3 pr-3 text-right text-[13px] font-medium text-ink">
           {held}
           {workload.kind === "endpoint" && workload.replicas !== null && (
-            <span className="text-ink-4"> {workload.replicas}x</span>
+            <span className="text-[11.5px] font-normal text-ink-4"> {workload.replicas}x</span>
           )}
         </td>
-        <td className="t-mono py-2 pr-3 text-[12px] text-ink-3">
+        <td className="t-mono whitespace-nowrap py-3 pr-3 text-[12px] text-ink-2">
           {workload.node_name ?? "-"}
         </td>
-        <td className="t-mono py-2 pr-3 text-[11.5px] text-ink-4">
+        <td className="t-mono py-3 pr-3 text-[11.5px] text-ink-3">
           {workload.placement_policy ?? "-"}
         </td>
-        <td className="t-mono py-2 pr-3 text-right text-[11.5px] text-ink-4">
+        <td className="py-3 pr-3 text-right text-[12px] text-ink-3">
           {ago(workload.created_at)}
         </td>
-        <td className="py-2 pr-4 text-right">
+        <td className="py-3 pr-5 text-right">
           <div className="flex justify-end gap-3 pl-2">
             <button
               type="button"
               onClick={toggle}
               aria-expanded={open}
-              className="text-[11.5px] text-ink-3 hover:text-accent"
+              className="rounded-full border border-line bg-card px-2.5 py-1 text-[11.5px] font-medium text-ink-2 hover:border-accent-line hover:text-accent"
             >
-              {open ? "hide" : "why"}
+              {open ? "Hide" : "Why?"}
             </button>
             {!TERMINAL.has(workload.status) && (
               <button
@@ -80,9 +80,9 @@ export function WorkloadRow({
                     await stopWorkloadAction(tenantId, workload.id, workload.kind);
                   })
                 }
-                className="text-[11.5px] text-ink-3 hover:text-crit disabled:opacity-50"
+                className="rounded-full border border-line bg-card px-2.5 py-1 text-[11.5px] font-medium text-ink-2 hover:border-crit hover:text-crit disabled:opacity-50"
               >
-                stop
+                Stop
               </button>
             )}
           </div>
@@ -90,11 +90,11 @@ export function WorkloadRow({
       </tr>
 
       {open && (
-        <tr className="bg-s2">
-          <td colSpan={7} className="px-4 pb-4 pt-2">
-            {loading && <p className="text-[11.5px] text-ink-4">Reading the decision.</p>}
+        <tr className="bg-sunk/60">
+          <td colSpan={7} className="px-5 pb-5 pt-1">
+            {loading && <p className="text-[12px] text-ink-3">Reading the decision…</p>}
             {detail && "error" in detail && (
-              <p className="text-[11.5px] text-crit">{detail.error}</p>
+              <p className="text-[12px] text-crit">{detail.error}</p>
             )}
             {detail && !("error" in detail) && <ExplainDetail explain={detail} />}
           </td>
@@ -108,7 +108,7 @@ export function WorkloadRow({
 function ExplainDetail({ explain }: { explain: Explain }) {
   const { quota, ordering, runway: r, kueue_admitted } = explain;
   return (
-    <div className="grid gap-x-8 gap-y-4 rounded-sm border border-hair bg-s1 p-4 sm:grid-cols-3">
+    <div className="grid gap-x-8 gap-y-5 rounded-sm border border-line bg-card p-4 shadow-card sm:grid-cols-3">
       <Group title="Admission">
         <Line label="quota" value={quota.passes ? "passes" : "blocked"} tone={!quota.passes} />
         <Line
@@ -121,7 +121,7 @@ function ExplainDetail({ explain }: { explain: Explain }) {
                 : "waiting"
           }
         />
-        {quota.reason && <p className="pt-1 text-[11px] text-ink-4">{quota.reason}</p>}
+        {quota.reason && <p className="pt-1 text-[11.5px] text-ink-3">{quota.reason}</p>}
       </Group>
 
       <Group title="Placement">
@@ -130,11 +130,11 @@ function ExplainDetail({ explain }: { explain: Explain }) {
             <Line label="rank" value={`${ordering.rank + 1} of ${ordering.total_admitted}`} />
             <Line label="would place on" value={ordering.would_place_on ?? "-"} />
             {ordering.blocked_reason && (
-              <p className="pt-1 text-[11px] text-ink-4">{ordering.blocked_reason}</p>
+              <p className="pt-1 text-[11.5px] text-ink-3">{ordering.blocked_reason}</p>
             )}
           </>
         ) : (
-          <p className="text-[11px] text-ink-4">
+          <p className="text-[11.5px] text-ink-3">
             Already decided. The row records the real outcome.
           </p>
         )}
@@ -145,8 +145,8 @@ function ExplainDetail({ explain }: { explain: Explain }) {
         <Line label="remaining" value={r.remaining_gpu_seconds ?? "∞"} />
         <Line label="runway" value={runway(r.runway_seconds)} />
         <div className="flex justify-between gap-2">
-          <span className="text-[11.5px] text-ink-4">risk tier</span>
-          <span className={cn("t-mono text-[11.5px]", riskTone(r.risk_tier))}>
+          <span className="text-[12px] text-ink-3">risk tier</span>
+          <span className={cn("text-[12px] font-medium", riskTone(r.risk_tier))}>
             {r.risk_tier} {RISK_TIER_LABEL[r.risk_tier]}
           </span>
         </div>
@@ -158,7 +158,7 @@ function ExplainDetail({ explain }: { explain: Explain }) {
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="t-label mb-1.5">{title}</div>
+      <div className="t-label mb-2 text-[11px] font-semibold uppercase tracking-wide">{title}</div>
       <div className="space-y-0.5">{children}</div>
     </div>
   );
@@ -167,8 +167,8 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
 function Line({ label, value, tone }: { label: string; value: string; tone?: boolean }) {
   return (
     <div className="flex justify-between gap-2">
-      <span className="text-[11.5px] text-ink-4">{label}</span>
-      <span className={cn("t-mono text-[11.5px]", tone ? "text-crit" : "text-ink-2")}>{value}</span>
+      <span className="text-[12px] text-ink-3">{label}</span>
+      <span className={cn("text-[12px] font-medium", tone ? "text-crit" : "text-ink")}>{value}</span>
     </div>
   );
 }

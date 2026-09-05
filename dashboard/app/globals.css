@@ -1,146 +1,91 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:is(.dark *));
-
 /* ---------------------------------------------------------------------------
    Kestrel operator console
 
-   Built on the surface-ladder model rather than hairlines alone. The previous
-   pass separated regions with 1px rules on a flat ground, which read as
-   unfinished: with no elevation anywhere, nothing looks deliberate. Linear's
-   system is the reference here - a canvas, then a short ladder of surfaces, with
-   hairline borders and no drop shadows at all. Depth comes from the ladder.
+   Light only. A warm grey canvas with pure white cards floating on it, so the
+   ground and the surfaces are genuinely different materials rather than two
+   shades of the same one. That contrast is what makes a card read as an object
+   worth reading, and it is the thing the previous hairline-on-flat version was
+   missing.
 
-   Accent is amber. Every AI-built dashboard reaches for blue or violet, and this
-   platform is about power draw and capacity, which amber says better than either.
-   Status (ok / queued / crit) is a separate semantic scale so the accent never
-   has to double as a state.
+   Type is a three-face split with one job each: Bricolage Grotesque carries the
+   headline readings, Inter Tight does the interface, JetBrains Mono is reserved
+   for identifiers (node names, workload names, policy names) where character
+   shapes actually matter.
+
+   Colour is used, not rationed. Blue is the brand and marks allocation; green,
+   amber and red are state. A number that matters is coloured; a number that is
+   context stays grey.
 --------------------------------------------------------------------------- */
 
 :root {
-  /* radius: 8px base, matching the reference. 3px read as cheap, not precise. */
-  --r-sm: 5px;
-  --r: 8px;
-  --r-lg: 12px;
+  /* ground and surfaces */
+  --canvas: #f4f4f1;
+  --card: #ffffff;
+  --sunk: #f1f1ee;
+  --line: #e6e5e0;
+  --line-2: #d6d5cf;
 
-  /* canvas -> ladder. Light theme is a warm-neutral paper, not pure white. */
-  --canvas: #f7f7f6;
-  --s1: #ffffff;
-  --s2: #fbfbfa;
-  --s3: #f2f2f0;
+  /* ink */
+  --ink: #17171a;
+  --ink-2: #55555e;
+  --ink-3: #8a8a93;
+  --ink-4: #b0b0b8;
 
-  /* four-step ink ladder */
-  --ink: #16161a;
-  --ink-2: #3d3d44;
-  --ink-3: #6b6b74;
-  --ink-4: #93939c;
-
-  /* three hairlines, each on a deliberate step */
-  --hair: #e6e6e2;
-  --hair-2: #d8d8d3;
-  --hair-3: #c4c4be;
-
-  --accent: #b45309;
+  /* brand + allocation */
+  --accent: #2563eb;
   --accent-ink: #ffffff;
-  --accent-weak: rgba(180 83 9 / 0.1);
-  --accent-line: rgba(180 83 9 / 0.32);
+  --accent-soft: #e8efff;
+  --accent-line: #bcd2ff;
 
-  --ok: #157f52;
-  --ok-weak: rgba(21 127 82 / 0.11);
-  --queue: #1e6bb8;
-  --queue-weak: rgba(30 107 184 / 0.11);
-  --crit: #b4241f;
-  --crit-weak: rgba(180 36 31 / 0.1);
+  /* state */
+  --ok: #0f9d58;
+  --ok-soft: #e3f5ec;
+  --warn: #d97706;
+  --warn-soft: #fdf0dd;
+  --crit: #dc2626;
+  --crit-soft: #fdeaea;
+  --idle-soft: #f0f0ed;
 
+  --r: 12px;
+  --r-sm: 8px;
+  --shadow-card: 0 1px 2px rgba(23, 23, 26, 0.04), 0 1px 3px rgba(23, 23, 26, 0.03);
+  --shadow-float: 0 4px 20px rgba(23, 23, 26, 0.07), 0 1px 3px rgba(23, 23, 26, 0.05);
   --ease: cubic-bezier(0.23, 1, 0.32, 1);
-}
-
-.dark {
-  --canvas: #08090a;
-  --s1: #0f1011;
-  --s2: #141516;
-  --s3: #191a1b;
-
-  --ink: #f7f8f8;
-  --ink-2: #d0d6e0;
-  --ink-3: #8a8f98;
-  --ink-4: #62666d;
-
-  --hair: #1e2024;
-  --hair-2: #2a2c31;
-  --hair-3: #3a3c42;
-
-  --accent: #f0a839;
-  --accent-ink: #12100b;
-  --accent-weak: rgba(240 168 57 / 0.13);
-  --accent-line: rgba(240 168 57 / 0.34);
-
-  --ok: #3fb27f;
-  --ok-weak: rgba(63 178 127 / 0.13);
-  --queue: #5b9bd8;
-  --queue-weak: rgba(91 155 216 / 0.13);
-  --crit: #e5645c;
-  --crit-weak: rgba(229 100 92 / 0.13);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not(.light) {
-    --canvas: #08090a;
-    --s1: #0f1011;
-    --s2: #141516;
-    --s3: #191a1b;
-
-    --ink: #f7f8f8;
-    --ink-2: #d0d6e0;
-    --ink-3: #8a8f98;
-    --ink-4: #62666d;
-
-    --hair: #1e2024;
-    --hair-2: #2a2c31;
-    --hair-3: #3a3c42;
-
-    --accent: #f0a839;
-    --accent-ink: #12100b;
-    --accent-weak: rgba(240 168 57 / 0.13);
-    --accent-line: rgba(240 168 57 / 0.34);
-
-    --ok: #3fb27f;
-    --ok-weak: rgba(63 178 127 / 0.13);
-    --queue: #5b9bd8;
-    --queue-weak: rgba(91 155 216 / 0.13);
-    --crit: #e5645c;
-    --crit-weak: rgba(229 100 92 / 0.13);
-  }
 }
 
 @theme inline {
   --color-canvas: var(--canvas);
-  --color-s1: var(--s1);
-  --color-s2: var(--s2);
-  --color-s3: var(--s3);
+  --color-card: var(--card);
+  --color-sunk: var(--sunk);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
   --color-ink-4: var(--ink-4);
-  --color-hair: var(--hair);
-  --color-hair-2: var(--hair-2);
-  --color-hair-3: var(--hair-3);
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
-  --color-accent-weak: var(--accent-weak);
+  --color-accent-soft: var(--accent-soft);
   --color-accent-line: var(--accent-line);
   --color-ok: var(--ok);
-  --color-ok-weak: var(--ok-weak);
-  --color-queue: var(--queue);
-  --color-queue-weak: var(--queue-weak);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
   --color-crit: var(--crit);
-  --color-crit-weak: var(--crit-weak);
+  --color-crit-soft: var(--crit-soft);
+  --color-idle-soft: var(--idle-soft);
 
   --radius-sm: var(--r-sm);
   --radius-md: var(--r);
-  --radius-lg: var(--r-lg);
+  --radius-lg: 16px;
 
-  --font-sans: var(--font-sans-face);
+  --shadow-card: var(--shadow-card);
+  --shadow-float: var(--shadow-float);
+
+  --font-display: var(--font-display);
+  --font-sans: var(--font-ui);
   --font-mono: var(--font-mono-face);
 }
 
@@ -152,10 +97,9 @@
   body {
     background: var(--canvas);
     color: var(--ink);
-    font-family: var(--font-sans-face), ui-sans-serif, system-ui, sans-serif;
-    font-size: 13.5px;
-    line-height: 1.5;
-    letter-spacing: -0.008em;
+    font-family: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.55;
     -webkit-font-smoothing: antialiased;
   }
 
@@ -163,44 +107,56 @@
     min-width: 0;
   }
 
-  /* Tracking scales with size, the way the reference does it: the bigger the
-     type, the more it needs pulling together. */
-  .t-display {
-    font-family: var(--font-mono-face), ui-monospace, monospace;
+  /* Headline readings. Bold, large, tightly tracked, in the display face. */
+  .t-num {
+    font-family: var(--font-display), ui-sans-serif, sans-serif;
+    font-weight: 700;
     font-variant-numeric: tabular-nums;
-    font-weight: 500;
-    letter-spacing: -0.05em;
+    letter-spacing: -0.035em;
+    line-height: 1;
   }
-  .t-title {
+
+  .t-h1 {
+    font-family: var(--font-display), ui-sans-serif, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.032em;
+    line-height: 1.08;
+  }
+
+  .t-h2 {
+    font-family: var(--font-display), ui-sans-serif, sans-serif;
     font-weight: 600;
-    letter-spacing: -0.028em;
+    letter-spacing: -0.02em;
   }
+
+  /* Identifiers only. */
   .t-mono {
     font-family: var(--font-mono-face), ui-monospace, monospace;
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.02em;
   }
+
   .t-label {
-    font-size: 10.5px;
+    font-size: 11.5px;
     font-weight: 500;
-    line-height: 1.3;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--ink-4);
+    letter-spacing: 0.01em;
+    color: var(--ink-3);
   }
 
   :focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
-    border-radius: 3px;
+    border-radius: 4px;
   }
 
-  button {
+  button,
+  a {
     transition:
-      background-color 130ms var(--ease),
-      border-color 130ms var(--ease),
-      color 130ms var(--ease),
-      transform 130ms var(--ease);
+      background-color 140ms var(--ease),
+      border-color 140ms var(--ease),
+      color 140ms var(--ease),
+      transform 140ms var(--ease),
+      box-shadow 140ms var(--ease);
   }
   button:not(:disabled):active {
     transform: scale(0.985);

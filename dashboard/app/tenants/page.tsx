@@ -1,18 +1,22 @@
 import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
 
 import { AutoRefresh } from "@/components/auto-refresh";
-import { Meter, PageHead, Panel } from "@/components/shell";
+import { Bar, PageHead, Status } from "@/components/shell";
 import { clusterWorkloads, listTenants } from "@/lib/kestrel";
 import { queryInstantBy } from "@/lib/prom";
-import { RISK_TIER_LABEL, gpuSeconds, riskTone } from "@/lib/format";
+import { RISK_TIER_LABEL, gpuSeconds } from "@/lib/format";
+import { cn } from "cn";
 
 export const dynamic = "force-dynamic";
 
-/**
- * Tenants as a register, not a card grid: every row carries the same readings in
- * the same columns, so the eye scans down one column to compare tenants. Cards
- * would put each tenant's numbers somewhere different and make that impossible.
- */
+const RISK_STYLE = [
+  "bg-ok-soft text-ok",
+  "bg-sunk text-ink-2",
+  "bg-warn-soft text-warn",
+  "bg-crit-soft text-crit",
+];
+
 export default async function TenantsPage() {
   // Held GPUs come from the control plane; runway and spend come from the metrics
   // it exposes, which is one query for all tenants rather than a call per row.
@@ -42,90 +46,83 @@ export default async function TenantsPage() {
   });
 
   return (
-    <div className="flex flex-col gap-5">
+    <div>
       <PageHead
         title="Tenants"
-        sub="Pick one to submit work and read its meter."
+        sub="Every tenant with quota on this cluster. Pick one to submit work and read its meter."
         aside={<AutoRefresh seconds={8} />}
       />
 
-      <Panel flush>
-        {tenants.length === 0 ? (
-          <p className="px-4 py-10 text-center text-[12.5px] text-ink-4">
-            No tenants yet. Create one with{" "}
-            <code className="t-mono text-[12px] text-ink-3">POST /admin/tenants</code>.
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] border-collapse">
-              <thead>
-                <tr className="border-b border-hair">
-                  <Th className="pl-4 text-left">Tenant</Th>
-                  <Th className="w-[190px] text-left">GPUs held</Th>
-                  <Th className="w-[86px] text-right">Running</Th>
-                  <Th className="w-[86px] text-right">Queued</Th>
-                  <Th className="w-[124px] text-right">Metered</Th>
-                  <Th className="w-[132px] pr-4 text-right">Runway</Th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-hair">
-                {rows.map(({ tenant, held, queued, running, tier, used }) => {
-                  const budgeted = tenant.gpu_second_budget !== null;
-                  return (
-                    <tr key={tenant.id} className="group transition-colors hover:bg-s2">
-                      <td className="py-2.5 pl-4 pr-3">
-                        <Link href={`/tenants/${tenant.id}`} className="block">
-                          <span className="t-mono block text-[12.5px] text-ink group-hover:text-accent">
-                            {tenant.slug}
-                          </span>
-                          <span className="block text-[11px] leading-tight text-ink-4">
-                            {tenant.name}
-                          </span>
-                        </Link>
-                      </td>
-                      <td className="py-2.5 pr-3">
-                        <div className="flex items-center gap-2.5">
-                          <Meter used={held} total={tenant.max_gpus} className="w-24" />
-                          <span className="t-mono text-[12px] text-ink-2">
-                            {held}
-                            <span className="text-ink-4">/{tenant.max_gpus}</span>
-                          </span>
-                        </div>
-                      </td>
-                      <td className="t-mono py-2.5 pr-3 text-right text-[12.5px] text-ink-2">
-                        {running || <span className="text-ink-4">0</span>}
-                      </td>
-                      <td className="t-mono py-2.5 pr-3 text-right text-[12.5px]">
-                        {queued > 0 ? (
-                          <span className="text-queue">{queued}</span>
-                        ) : (
-                          <span className="text-ink-4">0</span>
-                        )}
-                      </td>
-                      <td className="t-mono py-2.5 pr-3 text-right text-[12px] text-ink-3">
-                        {used === undefined ? "-" : gpuSeconds(used)}
-                      </td>
-                      <td className="py-2.5 pr-4 text-right">
-                        {budgeted && tier !== undefined ? (
-                          <span className={`t-mono text-[12px] ${riskTone(tier)}`}>
-                            {RISK_TIER_LABEL[tier]}
-                          </span>
-                        ) : (
-                          <span className="t-mono text-[12px] text-ink-4">no budget</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Panel>
+      {tenants.length === 0 ? (
+        <p className="rounded-md border border-dashed border-line-2 bg-card px-5 py-14 text-center text-[13px] text-ink-3">
+          No tenants yet. Create one with{" "}
+          <code className="t-mono text-[12.5px] text-ink-2">POST /admin/tenants</code>.
+        </p>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {rows.map(({ tenant, held, queued, running, tier, used }) => {
+            const budgeted = tenant.gpu_second_budget !== null;
+            return (
+              <Link
+                key={tenant.id}
+                href={`/tenants/${tenant.id}`}
+                className="group flex flex-col gap-4 rounded-md border border-line bg-card p-5 shadow-card transition-all hover:-translate-y-px hover:border-accent-line hover:shadow-float"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="t-h2 truncate text-[16px] text-ink">{tenant.name}</div>
+                    <div className="t-mono mt-0.5 truncate text-[12px] text-ink-3">
+                      {tenant.slug}
+                    </div>
+                  </div>
+                  <ArrowUpRight
+                    size={16}
+                    className="shrink-0 text-ink-4 transition-colors group-hover:text-accent"
+                  />
+                </div>
+
+                <div>
+                  <div className="mb-1.5 flex items-baseline justify-between">
+                    <span className="t-label">GPUs held</span>
+                    <span className="t-num text-[17px] text-ink">
+                      {held}
+                      <span className="text-ink-4">/{tenant.max_gpus}</span>
+                    </span>
+                  </div>
+                  <Bar used={held} total={tenant.max_gpus} />
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {running > 0 && <Status status="running" />}
+                  {queued > 0 && <Status status="queued" />}
+                  {running === 0 && queued === 0 && (
+                    <span className="rounded-full bg-idle-soft px-2.5 py-1 text-[11.5px] font-medium text-ink-3">
+                      idle
+                    </span>
+                  )}
+                  {budgeted && tier !== undefined && (
+                    <span
+                      className={cn(
+                        "rounded-full px-2.5 py-1 text-[11.5px] font-medium",
+                        RISK_STYLE[tier] ?? "bg-sunk text-ink-2",
+                      )}
+                    >
+                      runway {RISK_TIER_LABEL[tier]}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-baseline justify-between border-t border-line pt-3">
+                  <span className="t-label">Metered</span>
+                  <span className="text-[13px] font-medium text-ink-2">
+                    {used === undefined ? "-" : gpuSeconds(used)}
+                  </span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
-}
-
-function Th({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <th className={`t-label py-2 font-medium ${className}`}>{children}</th>;
 }
