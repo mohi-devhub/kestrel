@@ -21,8 +21,9 @@ from db.models import Tenant, Workload
 from economics.runway import RunwayStatus, risk_tier
 from metering import MeteringStore
 from quota import QuotaEnforcer, QuotaExceeded
-from scheduler.accounting import used_gpus_by_node, workload_gpus
-from scheduler.policy import ClusterState, PlacementCandidate, PlacementPolicy
+from scheduler.accounting import workload_gpus
+from scheduler.policy import PlacementCandidate, PlacementPolicy
+from scheduler.reconcile import build_cluster_state
 
 
 @dataclass(frozen=True)
@@ -135,6 +136,7 @@ def _explain_ordering(
         PlacementCandidate(
             workload_id=w.id,
             gpus_needed=workload_gpus(w),
+            requires_gpu=w.gpus_requested > 0,
             priority=w.priority,
             admitted_at=w.admitted_at or w.created_at,
             tenant_runway_seconds=runway_by_tenant.get(w.tenant_id),
@@ -144,11 +146,9 @@ def _explain_ordering(
     ordered = policy.order(candidates, now)
     rank = next(i for i, c in enumerate(ordered) if c.workload_id == workload.id)
 
-    capacity = {
-        n.name: n.gpu_capacity for n in cluster.list_nodes() if n.ready and n.gpu_capacity > 0
-    }
-    running = db.execute(select(Workload).where(Workload.status == "running")).scalars().all()
-    state = ClusterState(capacity=capacity, used=used_gpus_by_node(running))
+    # The same fleet view reconcile uses, not a second copy of it. This used to
+    # be duplicated here and drifted the moment placement learned about pools.
+    state = build_cluster_state(db, cluster)
 
     would_place_on: str | None = None
     blocked_reason: str | None = None

@@ -21,6 +21,7 @@ KWOK_TOLERATION = client.V1Toleration(
     key="kwok.x-k8s.io/node", operator="Exists", effect="NoSchedule"
 )
 GPU_RESOURCE = "nvidia.com/gpu"
+CONTROL_PLANE_LABEL = "node-role.kubernetes.io/control-plane"
 
 # Verified directly against the Kueue release installed by deploy/kueue/install.sh
 # (kueue:v0.19.1): v1beta2 is the storage version there (v1beta1 is still served for
@@ -230,10 +231,12 @@ class ClusterClient:
             )
             capacity = n.status.capacity or {}
             allocatable = n.status.allocatable or {}
+            labels = n.metadata.labels or {}
             result.append(
                 NodeInfo(
                     name=n.metadata.name,
                     ready=ready,
+                    is_control_plane=CONTROL_PLANE_LABEL in labels,
                     gpu_capacity=int(capacity.get(GPU_RESOURCE, 0)),
                     gpu_allocatable=int(allocatable.get(GPU_RESOURCE, 0)),
                     cpu_capacity=str(capacity.get("cpu", "0")),

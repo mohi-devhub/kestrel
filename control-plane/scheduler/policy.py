@@ -27,6 +27,10 @@ class ClusterState:
 
     `reserve` lets the reconcile loop claim capacity as it places candidates,
     so several placements in one pass can't double-book a node.
+
+    The fleet is heterogeneous: nodes advertising GPU capacity form the GPU pool,
+    and nodes without form the CPU pool. Pool membership is derived from capacity
+    rather than stored, so there is exactly one source of truth for it.
     """
 
     capacity: dict[str, int]
@@ -40,6 +44,24 @@ class ClusterState:
 
     def reserve(self, node: str, gpus: int) -> None:
         self.used[node] = self.used.get(node, 0) + gpus
+
+    def eligible(self, gpus_needed: int, requires_gpu: bool) -> list[str]:
+        """Nodes that may take this workload, in stable name order.
+
+        Pool membership follows `requires_gpu`, not `gpus_needed`, and the two
+        genuinely differ: an endpoint submitted with `min_replicas: 0` asks for
+        GPUs per replica but holds none until it wakes, so its footprint at
+        placement is zero. Routing on the footprint would put it in the CPU pool
+        and strand it there, unable to ever scale up.
+
+        CPU-only work goes to the CPU pool, which is the point of the split: a
+        workload needing no GPUs would otherwise "fit" on every node in the
+        fleet and land on a GPU node it has no use for. Here the GPU nodes are
+        also the simulated ones, so a container sent there never executes.
+        """
+        if requires_gpu:
+            return [n for n in self.nodes() if self.capacity[n] > 0 and self.free(n) >= gpus_needed]
+        return [n for n in self.nodes() if self.capacity[n] == 0]
 
 
 @dataclass(frozen=True)
@@ -56,6 +78,10 @@ class PlacementCandidate:
     gpus_needed: int
     priority: int
     admitted_at: datetime
+    # Whether this workload needs GPU hardware at all, which is not the same as
+    # holding GPUs right now: a scale-to-zero endpoint needs the GPU pool while
+    # its current footprint is zero.
+    requires_gpu: bool = True
     tenant_runway_seconds: Decimal | None = None
 
 

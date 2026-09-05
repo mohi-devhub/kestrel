@@ -4,6 +4,9 @@ from pydantic import BaseModel
 class NodeInfo(BaseModel):
     name: str
     ready: bool
+    # kind leaves the control-plane node untainted, so it is schedulable unless
+    # placement excludes it deliberately. Tenant work does not belong there.
+    is_control_plane: bool = False
     gpu_capacity: int
     gpu_allocatable: int
     cpu_capacity: str

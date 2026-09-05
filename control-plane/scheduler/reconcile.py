@@ -66,9 +66,18 @@ def _sync_running_jobs(db: Session, cluster: ClusterPort) -> int:
     return closed
 
 
-def _build_cluster_state(db: Session, cluster: ClusterPort) -> ClusterState:
+def build_cluster_state(db: Session, cluster: ClusterPort) -> ClusterState:
+    """Both pools, not just the GPU one.
+
+    A GPU-less node has capacity 0, which is what puts it in the CPU pool and
+    keeps it out of the running for GPU work. The control plane is excluded
+    outright: kind leaves it untainted and therefore schedulable, and tenant
+    workloads do not belong on it.
+    """
     capacity = {
-        n.name: n.gpu_capacity for n in cluster.list_nodes() if n.ready and n.gpu_capacity > 0
+        n.name: n.gpu_capacity
+        for n in cluster.list_nodes()
+        if n.ready and not n.is_control_plane
     }
     running = db.execute(select(Workload).where(Workload.status == "running")).scalars().all()
     return ClusterState(capacity=capacity, used=used_gpus_by_node(running))
@@ -80,7 +89,7 @@ def _place_admitted(db: Session, cluster: ClusterPort, policy: PlacementPolicy) 
         return 0
 
     now = datetime.now(UTC)
-    state = _build_cluster_state(db, cluster)
+    state = build_cluster_state(db, cluster)
     by_id = {w.id: w for w in rows}
 
     # Per-tenant GPU tally, queried once then maintained in memory as we place:
@@ -99,6 +108,9 @@ def _place_admitted(db: Session, cluster: ClusterPort, policy: PlacementPolicy) 
         PlacementCandidate(
             workload_id=w.id,
             gpus_needed=workload_gpus(w),
+            # From the request, not the footprint: a scale-to-zero endpoint asks
+            # for GPUs per replica but holds none until it wakes.
+            requires_gpu=w.gpus_requested > 0,
             priority=w.priority,
             admitted_at=w.admitted_at or w.created_at,
             tenant_runway_seconds=runway_by_tenant.get(w.tenant_id),

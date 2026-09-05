@@ -9,15 +9,12 @@ from scheduler.policy import ClusterState, PlacementCandidate, PlacementPolicy
 
 
 class FirstFit(PlacementPolicy):
-    """First node (stable name order) with enough free GPUs."""
+    """First eligible node in stable name order."""
 
     name = "first_fit"
 
     def select_node(self, state: ClusterState, candidate: PlacementCandidate) -> str | None:
-        for node in state.nodes():
-            if state.free(node) >= candidate.gpus_needed:
-                return node
-        return None
+        return next(iter(state.eligible(candidate.gpus_needed, candidate.requires_gpu)), None)
 
 
 class BinPacking(PlacementPolicy):
@@ -27,7 +24,7 @@ class BinPacking(PlacementPolicy):
     name = "bin_packing"
 
     def select_node(self, state: ClusterState, candidate: PlacementCandidate) -> str | None:
-        fitting = [n for n in state.nodes() if state.free(n) >= candidate.gpus_needed]
+        fitting = state.eligible(candidate.gpus_needed, candidate.requires_gpu)
         if not fitting:
             return None
         return min(fitting, key=lambda n: (state.free(n), n))

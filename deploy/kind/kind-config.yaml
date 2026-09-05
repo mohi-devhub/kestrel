@@ -3,3 +3,8 @@ kind: Cluster
 name: kestrel
 nodes:
   - role: control-plane
+  # A real worker with a real kubelet. The KWOK nodes advertise GPU capacity but
+  # never execute a container, so without this there is nowhere for CPU-only work
+  # (the demo model endpoint) to actually run. It forms the CPU pool; the KWOK
+  # nodes form the GPU pool.
+  - role: worker
