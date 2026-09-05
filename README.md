@@ -28,6 +28,15 @@ pod there reports `phase: Succeeded` with `containerStatuses: [None]` and no con
 autoscaler's demand signal is likewise *reported* through `POST /endpoints/{id}/load` rather than
 measured from real traffic.
 
+The fleet is split into two pools for exactly this reason. `kestrel-worker` is a real kind node with
+a real kubelet and no GPUs, and CPU-only work is scheduled there instead, where it genuinely runs.
+The difference is visible in the durations — the same control plane, two pools:
+
+| Workload | Node | Asked for | Actually took |
+| --- | --- | --- | --- |
+| 0 GPUs | `kestrel-worker` | `sleep 20` | 28.2s — real containerd ID, real kernel |
+| 2 GPUs | `kwok-gpu-node-0` | `sleep 10` | 2.0s — `containerStatuses: None`, never ran |
+
 **Real.** Everything above the hardware. kind runs a genuine Kubernetes API server, etcd, scheduler
 and controller-manager. Kueue genuinely admits workloads against real `ClusterQueue` quota. Real
 namespaces, `ResourceQuota`, `Job` and `Deployment` objects are created. The control plane is real
@@ -40,6 +49,10 @@ gpu_seconds = 66109.895422    recomputed = gpus x elapsed = 66109.8954
 
 Every figure in the console and in Prometheus derives from rows like that. Nothing is seeded or
 hardcoded.
+
+A real model runs on that worker. `demo/embed-service` serves all-MiniLM-L6-v2 (ONNX int8) and is
+scheduled through Kestrel like any other endpoint — the platform sees an image and a port, and knows
+nothing about the model.
 
 **The honest caveat.** `GPUs held` is *allocation*, not utilisation. There is no DCGM telemetry, so
 `GPU-seconds` means GPU-seconds reserved, not compute performed. Billing on allocation is what real
@@ -71,6 +84,18 @@ cd ../control-plane && alembic upgrade head
 
 Ports 5433 and 6380 are used for Postgres and Redis on the host, deliberately off the defaults so a
 native Postgres or Redis can keep 5432/6379.
+
+### The guided tour
+
+`scripts/demo.sh` walks the whole system end to end and tears itself down afterwards: the two pools,
+a real embedding model scheduled onto the node that can execute it, live inference through the
+resulting Service, a GPU job routed to the simulated pool, the scheduler's own explanation of that
+decision, and the metered cost. It builds and side-loads the model image on first run.
+
+```bash
+python3 scripts/seed.py   # three demo tenants, idempotent
+bash scripts/demo.sh
+```
 
 Create a tenant and submit work:
 
@@ -291,12 +316,12 @@ GET    /healthz                            live database / Redis / cluster check
 
 ## Tests
 
-175 tests, split by the infrastructure they actually need:
+187 tests, split by the infrastructure they actually need:
 
 | Needs | Count | What |
 | --- | --- | --- |
-| Nothing | 74 | Placement ordering, autoscale decisions, runway and budget arithmetic |
-| Postgres + Redis | 85 | Reconcile and autoscale loops against an in-memory `FakeCluster`, metering, quota, billing, the metrics collector, `/explain` |
+| Nothing | 85 | Placement ordering and pool routing, autoscale decisions, runway and budget arithmetic |
+| Postgres + Redis | 86 | Reconcile and autoscale loops against an in-memory `FakeCluster`, metering, quota, billing, the metrics collector, `/explain` |
 | Live kind cluster | 16 | Tenant bootstrap, placement, quota and autoscaling through the full stack |
 
 ```bash
@@ -305,9 +330,9 @@ python -m pytest ../tests/ -q          # everything
 ruff check . ../tests/ && mypy .       # lint + strict types
 ```
 
-Two things to know before running the whole suite: the compose `reconciler` and `autoscaler` drive
-their own ticks and will race the tests, and the live-cluster tests need free GPU capacity, so tear
-down running workloads first.
+The live suites tick the control loops in-process while the compose `reconciler` and `autoscaler`
+are also running, so they take the same Redis mutex those loops do (`tests/live_loops.py`) rather
+than racing them. They do need free GPU capacity, so tear down running workloads first.
 
 ---
 
@@ -324,11 +349,12 @@ control-plane/
   cluster/       Kubernetes + Kueue client behind a ClusterPort protocol
   obs/           Prometheus collector
 dashboard/       Next.js operator console
+demo/            embed-service: a real ONNX model for the CPU pool to serve
 deploy/          kind + KWOK + fake-gpu-operator + Kueue setup, docker-compose, Prometheus
-scripts/         loadgen
+scripts/         seed, demo, loadgen, reprovision
 tests/
 ```
 
 Interfaces are deliberately narrow and pure where possible: `PlacementPolicy`, `MeteringStore`,
-`QuotaEnforcer`, `ClusterPort` and `Autoscaler` are each independently testable, which is why 74 of
+`QuotaEnforcer`, `ClusterPort` and `Autoscaler` are each independently testable, which is why 85 of
 the tests need no infrastructure at all.
