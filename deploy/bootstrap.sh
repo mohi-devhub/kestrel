@@ -34,6 +34,20 @@ done
 
 bash "${SCRIPT_DIR}/kueue/install.sh"
 
+# Kubeconfigs, regenerated every run: recreating the cluster changes the API
+# server's address and certificate, so a stale pair silently breaks every
+# service. `--internal` addresses the API server by its Docker-network hostname,
+# which is how the containerized control plane reaches it; the plain one uses
+# 127.0.0.1 for local dev and tests.
+echo "Writing kubeconfigs to ${SCRIPT_DIR}/kubeconfig/ ..."
+mkdir -p "${SCRIPT_DIR}/kubeconfig"
+kind get kubeconfig --name "$CLUSTER_NAME" > "${SCRIPT_DIR}/kubeconfig/host.yaml"
+kind get kubeconfig --name "$CLUSTER_NAME" --internal > "${SCRIPT_DIR}/kubeconfig/internal.yaml"
+
 echo ""
 echo "=== Bring-up complete ==="
-kubectl get nodes -L run.ai/simulated-gpu-node-pool -o custom-columns=NAME:.metadata.name,STATUS:.status.conditions[-1].type,GPUs:.status.capacity.nvidia\\.com/gpu
+# KUBELET distinguishes the two pools at a glance: real nodes report a version,
+# KWOK's simulated ones report nothing because no kubelet exists to report it.
+# READY selects the Ready condition by name rather than taking the last one in
+# the list, which on a KWOK node is NetworkUnavailable and reads like a failure.
+kubectl get nodes -o 'custom-columns=NAME:.metadata.name,READY:.status.conditions[?(@.type=="Ready")].status,KUBELET:.status.nodeInfo.kubeletVersion,GPUS:.status.capacity.nvidia\.com/gpu'
