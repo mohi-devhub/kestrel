@@ -12,26 +12,33 @@ const NAV = [
 ];
 
 /**
- * Floating pill navigation.
+ * Floating navigation, sized to its contents.
  *
- * A console this size does not have enough destinations to justify a full
- * sidebar, and a sidebar spends 230px of every viewport saying so. Floating the
- * nav gives the content the whole width and keeps the chrome to one object.
+ * The bar used to span the full width with two destinations in it and a status
+ * chip pinned to the far edge, which left a large dead gap in the middle and
+ * made the chrome look unfinished. Hugging the content removes that gap by
+ * construction, and still works if a third destination ever appears.
+ *
+ * The two destinations are drawn as a segmented control, matching the
+ * job/endpoint switch in the submit form, so the same shape means the same thing
+ * in both places.
  */
 export function NavBar() {
   const pathname = usePathname();
 
   return (
     <header className="fixed inset-x-0 top-0 z-30 flex justify-center px-6 pt-5">
-      <nav className="flex w-full max-w-[1180px] items-center gap-4 rounded-full border border-line bg-card/85 py-2 pl-3 pr-4 shadow-float backdrop-blur-xl">
-        <Link href="/cluster" className="flex shrink-0 items-center gap-2.5 pl-1">
+      <nav className="flex items-center gap-2 rounded-full border border-line bg-card/85 py-1.5 pl-2.5 pr-1.5 shadow-float backdrop-blur-xl">
+        <Link href="/cluster" className="flex shrink-0 items-center gap-2">
           <Mark />
-          <span className="font-display text-[16px] font-bold tracking-tight text-ink">
+          <span className="font-display text-[15px] font-bold tracking-tight text-ink">
             Kestrel
           </span>
         </Link>
 
-        <div className="flex items-center gap-1">
+        <span aria-hidden className="mx-0.5 h-5 w-px bg-line" />
+
+        <div className="flex items-center gap-1 rounded-full bg-sunk p-1">
           {NAV.map(({ href, label, Icon }) => {
             const active = pathname === href || pathname.startsWith(`${href}/`);
             return (
@@ -40,23 +47,18 @@ export function NavBar() {
                 href={href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13.5px] font-medium transition-colors",
+                  "flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-medium transition-colors",
                   active
-                    ? "bg-ink text-card"
-                    : "text-ink-3 hover:bg-sunk hover:text-ink",
+                    ? "bg-card text-ink shadow-card"
+                    : "text-ink-3 hover:text-ink",
                 )}
               >
-                <Icon size={14} strokeWidth={2} />
+                <Icon size={13.5} strokeWidth={2} />
                 {label}
               </Link>
             );
           })}
         </div>
-
-        <span className="ml-auto hidden shrink-0 items-center gap-2 rounded-full bg-sunk px-3 py-1.5 text-[12px] text-ink-3 sm:flex">
-          <span className="size-1.5 rounded-full bg-ok" />
-          kind + KWOK, simulated GPUs
-        </span>
       </nav>
     </header>
   );

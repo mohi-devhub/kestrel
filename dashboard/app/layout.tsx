@@ -34,7 +34,15 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en">
       <body className={`${display.variable} ${ui.variable} ${mono.variable}`}>
         <NavBar />
-        <main className="mx-auto max-w-[1180px] px-6 pb-20 pt-28">{children}</main>
+        <main className="mx-auto max-w-[1180px] px-6 pt-28">{children}</main>
+        {/* The environment note used to pad out the nav bar. It belongs here:
+            still informative, no longer holding a gap open. */}
+        <footer className="mx-auto max-w-[1180px] px-6 pb-12 pt-10 text-center">
+          <span className="inline-flex items-center gap-2 text-[12px] text-ink-3">
+            <span className="size-1.5 rounded-full bg-ok" />
+            kind + KWOK, simulated GPUs. Scheduling, metering and autoscaling are real.
+          </span>
+        </footer>
       </body>
     </html>
   );
