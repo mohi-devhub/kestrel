@@ -124,10 +124,10 @@ a real model endpoint possible, and is what real clusters do with labels and aff
 ### 7b — Real model endpoint
 - [x] Small real CPU model chosen + verified runnable
 - [x] Model served as demo endpoint (model-agnostic interface)
-- [ ] `scripts/seed.py`
-- [ ] `scripts/demo.sh`
+- [x] `scripts/seed.py`
+- [x] `scripts/demo.sh`
 - [x] `README.md`
-- [ ] Full end-to-end demo run
+- [x] Full end-to-end demo run
 - [ ] CHECKPOINT shown to user
 
 ## Optional epilogue
